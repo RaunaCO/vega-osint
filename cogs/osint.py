@@ -1,16 +1,13 @@
 import discord
 from discord.ext import commands
 import aiohttp
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from config.settings import GUILD_ID
 
 class OSINT(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(guild_ids=[int(os.getenv("GUILD_ID"))], description="Busca un usuario en múltiples redes sociales")
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Busca un usuario en múltiples redes sociales")
     async def userrecon(self, ctx, usuario: str):
         await ctx.defer()
 
@@ -42,19 +39,8 @@ class OSINT(commands.Cog):
             description="Análisis de presencia digital completado.",
             color=0x00ff41
         )
-
-        embed.add_field(
-            name="✅ PERFILES ENCONTRADOS",
-            value="\n".join(encontrados) if encontrados else "Ninguno",
-            inline=False
-        )
-
-        embed.add_field(
-            name="❌ NO ENCONTRADOS",
-            value="\n".join(no_encontrados) if no_encontrados else "Ninguno",
-            inline=False
-        )
-
+        embed.add_field(name="✅ PERFILES ENCONTRADOS", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
+        embed.add_field(name="❌ NO ENCONTRADOS", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
         embed.set_footer(text="VEGA OSINT • Protocolo de Reconocimiento Digital")
         await ctx.respond(embed=embed)
 

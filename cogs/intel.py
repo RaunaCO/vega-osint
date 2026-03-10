@@ -1,111 +1,29 @@
 import discord
+import feedparser
 from discord.ext import commands, tasks
 import aiohttp
-import feedparser
-import os
-import re
-from dotenv import load_dotenv
 from datetime import datetime
-
-load_dotenv()
-
-CONFLICT_CHANNEL_ID = int(os.getenv("CONFLICT_CHANNEL_ID"))
-
-NITTER_INSTANCES = [
-    "https://nitter.poast.org",
-    "https://nitter.privacydev.net",
-    "https://nitter.projectsegfau.lt",
-]
-
-CUENTAS_X = [
-    "bellingcat",
-    "TheStudyofWar",
-    "OSINTtechnical",
-    "oryxspioenkop",
-    "AuroraIntel",
-    "TheIntelCrab",
-    "CalibreObscura",
-    "GeoConfirmed",
-    "DefMon3",
-    "Ralee85",
-    "AricToler",
-    "christogrozev",
-    "MATA_osint",
-    "Intel_Sky",
-    "OSINTWarfare",
-    "OSINT_Insider",
-    "J_JHelin",
-    "CovertShores",
-    "IntelTechniques",
-    "GPFutures",
-]
-
-FEEDS_NOTICIAS = {
-    "BBC World":        "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "Al Jazeera":       "https://www.aljazeera.com/xml/rss/all.xml",
-    "DW World":         "https://rss.dw.com/rdf/rss-en-world",
-    "Kyiv Independent": "https://kyivindependent.com/feed/",
-}
-
-PALABRAS_CLAVE = [
-    "war", "conflict", "attack", "strike", "missile", "airstrike",
-    "troops", "invasion", "crisis", "bomb", "killed", "casualties",
-    "offensive", "ceasefire", "evacuation", "siege", "hostage",
-    "nuclear", "drone", "explosion", "forces", "military",
-    "NATO", "UN", "Pentagon", "Kremlin", "IDF", "Hamas", "Hezbollah",
-    "guerra", "conflicto", "ataque", "misil", "invasión", "bomba",
-    "muertos", "ofensiva", "alto el fuego", "evacuación", "rehén",
-    "dron", "explosión", "fuerzas", "militar",
-    "Ukraine", "Gaza", "Iran", "Israel", "Syria", "Sudan",
-    "Yemen", "Taiwan", "Korea", "Ucrania", "Siria",
-    "OSINT", "intelligence", "geopolitics", "satellite", "confirmed",
-    "geolocated", "footage", "evidence", "vessel", "aircraft"
-]
-
-CRITICAS = [
-    "nuclear", "killed", "airstrike", "muertos", "bomba",
-    "casualties", "explosion", "massacre", "chemical", "ballistic"
-]
-
-def limpiar_html(texto):
-    return re.sub(r'<[^>]+>', '', texto).strip()
+from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, CUENTAS_X, NITTER_INSTANCES
+from utils.helpers import limpiar_html, obtener_feed_nitter, cargar_vistos, guardar_vistos
 
 class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.vistos = set()
+        self.vistos = cargar_vistos()
         self.monitor.start()
 
     def cog_unload(self):
         self.monitor.cancel()
 
-    async def obtener_feed_nitter(self, session, cuenta):
-        for instancia in NITTER_INSTANCES:
-            url = f"{instancia}/{cuenta}/rss"
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                    if resp.status == 200:
-                        contenido = await resp.text()
-                        feed = feedparser.parse(contenido)
-                        if feed.entries:
-                            return feed, instancia
-            except:
-                continue
-        return None, None
-
-    @tasks.loop(minutes=5)
-    async def monitor(self):
+    async def ejecutar_escaneo(self):
         canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
         if not canal:
             return
 
         async with aiohttp.ClientSession() as session:
-
             for cuenta in CUENTAS_X:
-                feed, instancia = await self.obtener_feed_nitter(session, cuenta)
-
+                feed = await obtener_feed_nitter(session, cuenta, NITTER_INSTANCES)
                 if not feed:
-                    print(f"[VEGA] Sin respuesta Nitter para @{cuenta}")
                     continue
 
                 for entrada in feed.entries[:3]:
@@ -117,17 +35,13 @@ class Intel(commands.Cog):
                         continue
 
                     self.vistos.add(link)
+                    guardar_vistos(self.vistos)
 
-                    es_critica = any(p in titulo.lower() for p in CRITICAS)
+                    es_critica = any(p in titulo.lower() for p in PALABRAS_CRITICAS)
                     color = 0xff0000 if es_critica else 0x1da1f2
                     nivel = "🔴 ALERTA CRÍTICA" if es_critica else "🐦 INTEL X"
 
-                    embed = discord.Embed(
-                        title=titulo[:250],
-                        url=f"https://twitter.com/{cuenta}",
-                        description=resumen,
-                        color=color
-                    )
+                    embed = discord.Embed(title=titulo[:250], url=f"https://twitter.com/{cuenta}", description=resumen, color=color)
                     embed.set_author(name=f"{nivel} — @{cuenta}")
                     embed.set_footer(text=f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC")
                     await canal.send(embed=embed)
@@ -135,48 +49,44 @@ class Intel(commands.Cog):
             for fuente, url in FEEDS_NOTICIAS.items():
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                        contenido = await resp.text()
-                        feed = feedparser.parse(contenido)
+                        feed = feedparser.parse(await resp.text())
 
                         for entrada in feed.entries[:5]:
                             titulo = entrada.get("title", "")
                             link = entrada.get("link", "")
-                            resumen = limpiar_html(entrada.get("summary", "Sin resumen"))[:300]
+                            resumen = limpiar_html(entrada.get("summary", ""))[:300]
 
                             if link in self.vistos:
                                 continue
 
-                            titulo_lower = titulo.lower()
-                            es_relevante = any(p in titulo_lower for p in PALABRAS_CLAVE)
-
-                            if es_relevante:
+                            if any(p in titulo.lower() for p in PALABRAS_CLAVE):
                                 self.vistos.add(link)
-                                es_critica = any(p in titulo_lower for p in CRITICAS)
+                                guardar_vistos(self.vistos)
+
+                                es_critica = any(p in titulo.lower() for p in PALABRAS_CRITICAS)
                                 color = 0xff0000 if es_critica else 0xff8800
                                 nivel = "🔴 ALERTA CRÍTICA" if es_critica else "🟠 CONFLICTO"
 
-                                embed = discord.Embed(
-                                    title=f"📡 {titulo}",
-                                    url=link,
-                                    description=resumen + "...",
-                                    color=color
-                                )
+                                embed = discord.Embed(title=f"📡 {titulo}", url=link, description=resumen + "...", color=color)
                                 embed.set_author(name=f"{nivel} — {fuente}")
                                 embed.set_footer(text=f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC")
                                 await canal.send(embed=embed)
-
                 except Exception as e:
                     print(f"[VEGA] Error en feed {fuente}: {e}")
+
+    @tasks.loop(minutes=5)
+    async def monitor(self):
+        await self.ejecutar_escaneo()
 
     @monitor.before_loop
     async def before_monitor(self):
         await self.bot.wait_until_ready()
 
-    @discord.slash_command(guild_ids=[int(os.getenv("GUILD_ID"))], description="Escanea todas las fuentes ahora mismo")
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Escanea todas las fuentes ahora mismo")
     async def scanfeed(self, ctx):
         await ctx.defer()
-        await ctx.respond("📡 **VEGA** — Escaneando fuentes X y feeds de noticias... Resultados en `#conflict-watch`.")
-        await self.monitor()
+        await ctx.respond("📡 **VEGA** — Escaneando fuentes... Resultados en `#conflict-watch`.")
+        await self.ejecutar_escaneo()
 
 def setup(bot):
     bot.add_cog(Intel(bot))
