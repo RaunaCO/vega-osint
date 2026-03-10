@@ -16,6 +16,7 @@ intents.members = True
 bot = discord.Bot(intents=intents)
 
 bot.load_extension("cogs.osint")
+bot.load_extension("cogs.intel")
 
 @bot.event
 async def on_ready():
