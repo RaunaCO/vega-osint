@@ -3,12 +3,29 @@ import json
 import os
 import aiohttp
 import feedparser
+from deep_translator import GoogleTranslator
+from langdetect import detect, LangDetectException
 from config.settings import FEEDS_NOTICIAS
 
 VISTOS_PATH = "data/vistos.json"
 
 def limpiar_html(texto: str) -> str:
     return re.sub(r'<[^>]+>', '', texto).strip()
+
+def detectar_y_traducir(texto: str) -> tuple[str, bool]:
+    if not texto or len(texto) < 10:
+        return texto, False
+    try:
+        idioma = detect(texto)
+        if idioma == "es":
+            return texto, False
+        traducido = GoogleTranslator(source="auto", target="es").translate(texto)
+        return traducido, True
+    except LangDetectException:
+        return texto, False
+    except Exception as e:
+        print(f"[VEGA] Error de traducción: {e}")
+        return texto, False
 
 def cargar_vistos() -> set:
     if os.path.exists(VISTOS_PATH):

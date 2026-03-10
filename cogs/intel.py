@@ -4,7 +4,7 @@ from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
 from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, CUENTAS_X, NITTER_INSTANCES
-from utils.helpers import limpiar_html, obtener_feed_nitter, cargar_vistos, guardar_vistos
+from utils.helpers import limpiar_html, obtener_feed_nitter, cargar_vistos, guardar_vistos, detectar_y_traducir
 
 class Intel(commands.Cog):
     def __init__(self, bot):
@@ -37,13 +37,20 @@ class Intel(commands.Cog):
                     self.vistos.add(link)
                     guardar_vistos(self.vistos)
 
+                    titulo_final, titulo_traducido = detectar_y_traducir(titulo)
+                    resumen_final, resumen_traducido = detectar_y_traducir(resumen)
+                    fue_traducido = titulo_traducido or resumen_traducido
+
                     es_critica = any(p in titulo.lower() for p in PALABRAS_CRITICAS)
                     color = 0xff0000 if es_critica else 0x1da1f2
                     nivel = "🔴 ALERTA CRÍTICA" if es_critica else "🐦 INTEL X"
 
-                    embed = discord.Embed(title=titulo[:250], url=f"https://twitter.com/{cuenta}", description=resumen, color=color)
+                    embed = discord.Embed(title=titulo_final[:250], url=f"https://twitter.com/{cuenta}", description=resumen_final, color=color)
                     embed.set_author(name=f"{nivel} — @{cuenta}")
-                    embed.set_footer(text=f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC")
+                    pie = f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                    if fue_traducido:
+                        pie += " • 🌐 Traducido automáticamente"
+                    embed.set_footer(text=pie)
                     await canal.send(embed=embed)
 
             for fuente, url in FEEDS_NOTICIAS.items():
@@ -63,13 +70,20 @@ class Intel(commands.Cog):
                                 self.vistos.add(link)
                                 guardar_vistos(self.vistos)
 
+                                titulo_final, titulo_traducido = detectar_y_traducir(titulo)
+                                resumen_final, resumen_traducido = detectar_y_traducir(resumen)
+                                fue_traducido = titulo_traducido or resumen_traducido
+
                                 es_critica = any(p in titulo.lower() for p in PALABRAS_CRITICAS)
                                 color = 0xff0000 if es_critica else 0xff8800
                                 nivel = "🔴 ALERTA CRÍTICA" if es_critica else "🟠 CONFLICTO"
 
-                                embed = discord.Embed(title=f"📡 {titulo}", url=link, description=resumen + "...", color=color)
+                                embed = discord.Embed(title=f"📡 {titulo_final}", url=link, description=resumen_final + "...", color=color)
                                 embed.set_author(name=f"{nivel} — {fuente}")
-                                embed.set_footer(text=f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC")
+                                pie = f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                if fue_traducido:
+                                    pie += " • 🌐 Traducido automáticamente"
+                                embed.set_footer(text=pie)
                                 await canal.send(embed=embed)
                 except Exception as e:
                     print(f"[VEGA] Error en feed {fuente}: {e}")
