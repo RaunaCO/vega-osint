@@ -17,6 +17,7 @@ bot = discord.Bot(intents=intents)
 
 bot.load_extension("cogs.osint")
 bot.load_extension("cogs.intel")
+bot.load_extension("cogs.ai_brain")
 
 @bot.event
 async def on_ready():
