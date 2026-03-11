@@ -15,6 +15,12 @@ FEEDS_NOTICIAS = {
     "Al Jazeera":       "https://www.aljazeera.com/xml/rss/all.xml",
     "DW World":         "https://rss.dw.com/rdf/rss-en-world",
     "Kyiv Independent": "https://kyivindependent.com/feed/",
+    "The War Zone":     "https://www.thedrive.com/the-war-zone/rss",
+    "Foreign Policy":   "https://foreignpolicy.com/feed/",
+    "Military Times":   "https://www.militarytimes.com/arc/outboundfeeds/rss/",
+    "Defense News":     "https://www.defensenews.com/arc/outboundfeeds/rss/",
+    "France 24":        "https://www.france24.com/en/rss",
+    "The Guardian":     "https://www.theguardian.com/world/rss",
 }
 
 PALABRAS_CLAVE = [

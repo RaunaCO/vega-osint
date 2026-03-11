@@ -37,6 +37,22 @@ def guardar_vistos(vistos: set):
     with open(VISTOS_PATH, "w") as f:
         json.dump(list(vistos), f)
 
+def extraer_imagen(entrada) -> str:
+    if hasattr(entrada, "media_content") and entrada.media_content:
+        for media in entrada.media_content:
+            if media.get("type", "").startswith("image"):
+                return media.get("url", "")
+
+    if hasattr(entrada, "media_thumbnail") and entrada.media_thumbnail:
+        return entrada.media_thumbnail[0].get("url", "")
+
+    summary_raw = entrada.get("summary", "")
+    match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', summary_raw)
+    if match:
+        return match.group(1)
+
+    return ""
+
 async def buscar_noticias_relevantes(tema: str, max_noticias: int = 8) -> list:
     palabras = re.split(r'[\s\-,]+', tema.lower())
     noticias_encontradas = []
