@@ -1,0 +1,18 @@
+# Entorno virtual
+venv/
+
+# Variables de entorno secretas
+.env
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Datos locales
+data/*.json
+data/*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
