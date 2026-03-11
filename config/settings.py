@@ -12,6 +12,13 @@ CRITICAL_CHANNEL_ID = int(os.getenv("CRITICAL_CHANNEL_ID"))
 OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
 MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
 EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
+REGION_CANALES = {
+    "Medio Oriente": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
+    "Europa":        int(os.getenv("REGION_EUROPA_ID")),
+    "África":        int(os.getenv("REGION_AFRICA_ID")),
+    "Asia":          int(os.getenv("REGION_ASIA_ID")),
+    "Américas":      int(os.getenv("REGION_AMERICAS_ID")),
+}
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
