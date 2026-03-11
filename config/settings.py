@@ -6,6 +6,12 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 CONFLICT_CHANNEL_ID = int(os.getenv("CONFLICT_CHANNEL_ID"))
+STATUS_CHANNEL_ID = int(os.getenv("STATUS_CHANNEL_ID"))
+LOGS_CHANNEL_ID = int(os.getenv("LOGS_CHANNEL_ID"))
+CRITICAL_CHANNEL_ID = int(os.getenv("CRITICAL_CHANNEL_ID"))
+OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
+MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
+EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"

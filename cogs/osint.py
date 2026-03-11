@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
 import aiohttp
-from config.settings import GUILD_ID
+from datetime import datetime, timezone
+from config.settings import GUILD_ID, OSINT_HITS_CHANNEL_ID
 
 class OSINT(commands.Cog):
     def __init__(self, bot):
@@ -37,12 +38,32 @@ class OSINT(commands.Cog):
         embed = discord.Embed(
             title=f"🔍 RECON — `{usuario}`",
             description="Análisis de presencia digital completado.",
-            color=0x00ff41
+            color=0x00ff41,
+            timestamp=datetime.now(timezone.utc)
         )
         embed.add_field(name="✅ PERFILES ENCONTRADOS", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
         embed.add_field(name="❌ NO ENCONTRADOS", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
         embed.set_footer(text="VEGA OSINT • Protocolo de Reconocimiento Digital")
+
         await ctx.respond(embed=embed)
+
+        # Archivar en #osint-hits
+        canal_hits = self.bot.get_channel(OSINT_HITS_CHANNEL_ID)
+        if canal_hits:
+            embed_archivo = discord.Embed(
+                title=f"📁 RECON ARCHIVADO — `{usuario}`",
+                color=0x00ff41,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed_archivo.add_field(name="✅ Encontrados", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
+            embed_archivo.add_field(name="❌ No encontrados", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
+            embed_archivo.set_footer(text=f"VEGA OSINT • Ejecutado por {ctx.author.display_name}")
+            await canal_hits.send(embed=embed_archivo)
+
+        # Registrar en logs
+        admin = self.bot.cogs.get("Admin")
+        if admin:
+            admin.registrar(f"🔍 /userrecon ejecutado: {usuario} — {len(encontrados)} perfiles encontrados")
 
 def setup(bot):
     bot.add_cog(OSINT(bot))

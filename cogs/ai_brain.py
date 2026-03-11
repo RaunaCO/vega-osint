@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands
 from groq import Groq
-from datetime import datetime
-from config.settings import GUILD_ID, GROQ_API_KEY, GROQ_MODEL, SYSTEM_PROMPT, CONFLICT_CHANNEL_ID
+from datetime import datetime, timezone
+from config.settings import GUILD_ID, GROQ_API_KEY, GROQ_MODEL, SYSTEM_PROMPT, CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID
 from utils.helpers import buscar_noticias_relevantes
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
@@ -10,6 +10,19 @@ cliente_groq = Groq(api_key=GROQ_API_KEY)
 class AIBrain(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def archivar_sitrep(self, tema: str, contenido: str, fuentes: int, autor: str):
+        canal = self.bot.get_channel(MISSION_LOGS_CHANNEL_ID)
+        if not canal:
+            return
+        embed = discord.Embed(
+            title=f"📋 SITREP ARCHIVADO — {tema.upper()}",
+            description=contenido[:4000],
+            color=0x2b2d31,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_footer(text=f"VEGA OSINT • {fuentes} fuentes • Solicitado por {autor}")
+        await canal.send(embed=embed)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Genera un SITREP basado en noticias reales")
     async def sitrep(self, ctx, tema: str):
@@ -29,9 +42,16 @@ class AIBrain(commands.Cog):
             )
 
             contenido = respuesta.choices[0].message.content[:4000]
-            embed = discord.Embed(title=f"📋 SITREP — {tema.upper()}", description=contenido, color=0x00ff41, timestamp=datetime.utcnow())
+            embed = discord.Embed(title=f"📋 SITREP — {tema.upper()}", description=contenido, color=0x00ff41, timestamp=datetime.now(timezone.utc))
             embed.set_footer(text=f"VEGA OSINT • {len(noticias)} fuentes analizadas")
             await ctx.respond(embed=embed)
+
+            await self.archivar_sitrep(tema, contenido, len(noticias), ctx.author.display_name)
+
+            admin = self.bot.cogs.get("Admin")
+            if admin:
+                admin.registrar(f"📋 /sitrep generado: {tema[:40]} — {len(noticias)} fuentes")
+
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
@@ -49,9 +69,14 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             contenido = respuesta.choices[0].message.content
-            embed = discord.Embed(title="🧠 ANÁLISIS DE INTELIGENCIA", description=contenido, color=0x7700ff, timestamp=datetime.utcnow())
+            embed = discord.Embed(title="🧠 ANÁLISIS DE INTELIGENCIA", description=contenido, color=0x7700ff, timestamp=datetime.now(timezone.utc))
             embed.set_footer(text="VEGA OSINT • Verificar fuentes primarias")
             await ctx.respond(embed=embed)
+
+            admin = self.bot.cogs.get("Admin")
+            if admin:
+                admin.registrar(f"🧠 /analizar ejecutado por {ctx.author.display_name}")
+
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
@@ -60,7 +85,6 @@ class AIBrain(commands.Cog):
         await ctx.defer()
         try:
             canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
-
             if not canal:
                 await ctx.respond("⚠️ **VEGA** — Canal de inteligencia no encontrado.")
                 return
@@ -84,7 +108,7 @@ class AIBrain(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenera un resumen ejecutivo breve de estas noticias recientes. Identifica patrones, tendencias y el tema dominante:\n\n{contexto}"}
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenera un resumen ejecutivo de estas noticias recientes:\n\n{contexto}"}
                 ],
                 max_tokens=800,
                 temperature=0.2
@@ -95,10 +119,14 @@ class AIBrain(commands.Cog):
                 title=f"📊 RESUMEN EJECUTIVO — Últimas {len(mensajes)} noticias",
                 description=contenido,
                 color=0x0088ff,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             embed.set_footer(text=f"VEGA OSINT • Basado en {len(mensajes)} entradas recientes")
             await ctx.respond(embed=embed)
+
+            admin = self.bot.cogs.get("Admin")
+            if admin:
+                admin.registrar(f"📊 /resumen ejecutado por {ctx.author.display_name}")
 
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")

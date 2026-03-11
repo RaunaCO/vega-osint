@@ -4,7 +4,7 @@ from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
 from groq import Groq
-from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, GROQ_API_KEY, GROQ_MODEL
+from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, GROQ_API_KEY, GROQ_MODEL
 from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_y_traducir, extraer_imagen
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
@@ -26,6 +26,18 @@ Al final agrega:
 
 Tono: técnico, directo. Sin introducciones ni despedidas."""
 
+PROMPT_CRITICA = """Eres VEGA. Se te proporciona una noticia de máxima prioridad.
+Genera un análisis de alerta crítica en este formato exacto:
+
+🚨 **ALERTA CRÍTICA — [TÍTULO]**
+
+**SITUACIÓN:** [1-2 oraciones describiendo el evento]
+**IMPACTO INMEDIATO:** [consecuencias directas]
+**NIVEL DE AMENAZA:** CRÍTICO
+**ACCIÓN RECOMENDADA:** [qué monitorear ahora mismo]
+
+Tono: urgente, directo, sin adornos."""
+
 class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -35,7 +47,51 @@ class Intel(commands.Cog):
     def cog_unload(self):
         self.monitor.cancel()
 
+    def get_admin(self):
+        return self.bot.cogs.get("Admin")
+
+    async def enviar_alerta_critica(self, noticia: dict):
+        canal = self.bot.get_channel(CRITICAL_CHANNEL_ID)
+        if not canal:
+            return
+
+        try:
+            respuesta = cliente_groq.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": PROMPT_CRITICA},
+                    {"role": "user", "content": f"Noticia crítica:\nTítulo: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nURL: {noticia['link']}"}
+                ],
+                max_tokens=400,
+                temperature=0.2
+            )
+            contenido = respuesta.choices[0].message.content
+
+            embed = discord.Embed(
+                title="🚨 ALERTA CRÍTICA",
+                description=contenido,
+                color=0xff0000,
+                timestamp=datetime.utcnow()
+            )
+            if noticia.get("imagen"):
+                embed.set_image(url=noticia["imagen"])
+            embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=False)
+            embed.set_footer(text="VEGA OSINT • PRIORIDAD MÁXIMA")
+
+            await canal.send("@everyone", embed=embed)
+
+            admin = self.get_admin()
+            if admin:
+                admin.registrar(f"🚨 Alerta crítica enviada: {noticia['titulo'][:50]}...")
+
+        except Exception as e:
+            print(f"[VEGA] Error enviando alerta crítica: {e}")
+
     async def ejecutar_escaneo(self):
+        admin = self.get_admin()
+        if admin:
+            admin.registrar("📡 Iniciando escaneo de fuentes...")
+
         canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
         if not canal:
             return
@@ -77,13 +133,23 @@ class Intel(commands.Cog):
                                     "critica": es_critica
                                 })
 
+                                if admin:
+                                    admin.registrar(f"{'🔴' if es_critica else '🟠'} [{fuente}] {titulo_final[:45]}...")
+
                 except Exception as e:
                     print(f"[VEGA] Error en feed {fuente}: {e}")
+                    if admin:
+                        admin.registrar(f"⚠️ Error en feed {fuente}: {str(e)[:40]}")
 
-        # Si no hay noticias nuevas no hacemos nada
         if not noticias_nuevas:
-            print(f"[VEGA] Sin noticias nuevas en este ciclo — {datetime.utcnow().strftime('%H:%M')} UTC")
+            if admin:
+                admin.registrar(f"✅ Escaneo completado — Sin noticias nuevas")
             return
+
+        # Enviar alertas críticas por separado
+        for noticia in noticias_nuevas:
+            if noticia["critica"]:
+                await self.enviar_alerta_critica(noticia)
 
         # Construir contexto para Groq
         contexto = ""
@@ -94,7 +160,6 @@ class Intel(commands.Cog):
             contexto += f"   RESUMEN: {n['resumen']}\n"
             contexto += f"   URL: {n['link']}\n\n"
 
-        # Generar análisis con Groq
         try:
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
@@ -107,28 +172,18 @@ class Intel(commands.Cog):
             )
 
             contenido = respuesta.choices[0].message.content
-
-            # Si el contenido es muy largo dividirlo en dos embeds
             hay_critica = any(n["critica"] for n in noticias_nuevas)
             color = 0xff0000 if hay_critica else 0xff8800
             nivel = "🔴 CICLO — ALERTA CRÍTICA DETECTADA" if hay_critica else "🟠 CICLO DE INTELIGENCIA"
-
-            # Imagen de la primera noticia que tenga
             imagen_principal = next((n["imagen"] for n in noticias_nuevas if n["imagen"]), None)
 
             if len(contenido) <= 4000:
-                embed = discord.Embed(
-                    title=f"📡 {nivel}",
-                    description=contenido,
-                    color=color,
-                    timestamp=datetime.utcnow()
-                )
+                embed = discord.Embed(title=f"📡 {nivel}", description=contenido, color=color, timestamp=datetime.utcnow())
                 if imagen_principal:
                     embed.set_image(url=imagen_principal)
                 embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} nuevas entradas analizadas")
                 await canal.send(embed=embed)
             else:
-                # Dividir en dos partes si es muy largo
                 mitad = len(contenido) // 2
                 corte = contenido.rfind("\n\n", 0, mitad)
                 parte1 = contenido[:corte]
@@ -145,8 +200,14 @@ class Intel(commands.Cog):
                 await canal.send(embed=embed1)
                 await canal.send(embed=embed2)
 
+            if admin:
+                admin.incrementar_ciclo()
+                admin.registrar(f"✅ Ciclo completado — {len(noticias_nuevas)} noticias procesadas")
+
         except Exception as e:
             print(f"[VEGA] Error generando análisis de ciclo: {e}")
+            if admin:
+                admin.registrar(f"❌ Error en análisis IA: {str(e)[:50]}")
 
     @tasks.loop(minutes=5)
     async def monitor(self):
