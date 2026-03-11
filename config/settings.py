@@ -3,39 +3,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ============================================
-# VEGA OSINT — CONFIGURACIÓN CENTRAL
-# config/settings.py
-# ============================================
-
-# --- DISCORD ---
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 CONFLICT_CHANNEL_ID = int(os.getenv("CONFLICT_CHANNEL_ID"))
 
-# --- IA ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
-# --- NITTER ---
-NITTER_INSTANCES = [
-    "https://nitter.poast.org",
-    "https://nitter.privacydev.net",
-    "https://nitter.projectsegfau.lt",
-]
-
-# --- CUENTAS X ---
-CUENTAS_X = [
-    "bellingcat", "TheStudyofWar", "OSINTtechnical",
-    "oryxspioenkop", "AuroraIntel", "TheIntelCrab",
-    "CalibreObscura", "GeoConfirmed", "DefMon3",
-    "Ralee85", "AricToler", "christogrozev",
-    "MATA_osint", "Intel_Sky", "OSINTWarfare",
-    "OSINT_Insider", "J_JHelin", "CovertShores",
-    "IntelTechniques", "GPFutures",
-]
-
-# --- FEEDS DE NOTICIAS ---
 FEEDS_NOTICIAS = {
     "BBC World":        "http://feeds.bbci.co.uk/news/world/rss.xml",
     "Al Jazeera":       "https://www.aljazeera.com/xml/rss/all.xml",
@@ -43,7 +17,6 @@ FEEDS_NOTICIAS = {
     "Kyiv Independent": "https://kyivindependent.com/feed/",
 }
 
-# --- PALABRAS CLAVE ---
 PALABRAS_CLAVE = [
     "war", "conflict", "attack", "strike", "missile", "airstrike",
     "troops", "invasion", "crisis", "bomb", "killed", "casualties",
@@ -64,7 +37,6 @@ PALABRAS_CRITICAS = [
     "casualties", "explosion", "massacre", "chemical", "ballistic"
 ]
 
-# --- PROMPT DE IA ---
 SYSTEM_PROMPT = """Eres VEGA, un sistema de inteligencia artificial especializado en análisis de conflictos geopolíticos y operaciones militares.
 
 Tu función es generar SITREPs (Situational Reports) con el siguiente formato estricto:

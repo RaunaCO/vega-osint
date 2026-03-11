@@ -62,17 +62,3 @@ async def buscar_noticias_relevantes(tema: str, max_noticias: int = 8) -> list:
                 print(f"[VEGA] Error en feed {fuente}: {e}")
 
     return noticias_encontradas[:max_noticias]
-
-async def obtener_feed_nitter(session, cuenta: str, instancias: list):
-    for instancia in instancias:
-        url = f"{instancia}/{cuenta}/rss"
-        try:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                if resp.status == 200:
-                    contenido = await resp.text()
-                    feed = feedparser.parse(contenido)
-                    if feed.entries:
-                        return feed
-        except:
-            continue
-    return None

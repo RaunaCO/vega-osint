@@ -3,8 +3,8 @@ import feedparser
 from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
-from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, CUENTAS_X, NITTER_INSTANCES
-from utils.helpers import limpiar_html, obtener_feed_nitter, cargar_vistos, guardar_vistos, detectar_y_traducir
+from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS
+from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_y_traducir
 
 class Intel(commands.Cog):
     def __init__(self, bot):
@@ -21,38 +21,6 @@ class Intel(commands.Cog):
             return
 
         async with aiohttp.ClientSession() as session:
-            for cuenta in CUENTAS_X:
-                feed = await obtener_feed_nitter(session, cuenta, NITTER_INSTANCES)
-                if not feed:
-                    continue
-
-                for entrada in feed.entries[:3]:
-                    titulo = limpiar_html(entrada.get("title", ""))
-                    link = entrada.get("link", "")
-                    resumen = limpiar_html(entrada.get("summary", titulo))[:400]
-
-                    if link in self.vistos or not titulo:
-                        continue
-
-                    self.vistos.add(link)
-                    guardar_vistos(self.vistos)
-
-                    titulo_final, titulo_traducido = detectar_y_traducir(titulo)
-                    resumen_final, resumen_traducido = detectar_y_traducir(resumen)
-                    fue_traducido = titulo_traducido or resumen_traducido
-
-                    es_critica = any(p in titulo.lower() for p in PALABRAS_CRITICAS)
-                    color = 0xff0000 if es_critica else 0x1da1f2
-                    nivel = "🔴 ALERTA CRÍTICA" if es_critica else "🐦 INTEL X"
-
-                    embed = discord.Embed(title=titulo_final[:250], url=f"https://twitter.com/{cuenta}", description=resumen_final, color=color)
-                    embed.set_author(name=f"{nivel} — @{cuenta}")
-                    pie = f"VEGA OSINT • {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
-                    if fue_traducido:
-                        pie += " • 🌐 Traducido automáticamente"
-                    embed.set_footer(text=pie)
-                    await canal.send(embed=embed)
-
             for fuente, url in FEEDS_NOTICIAS.items():
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
