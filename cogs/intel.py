@@ -1,5 +1,6 @@
 import discord
 import feedparser
+import json
 from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
@@ -9,23 +10,6 @@ from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
 
-PROMPT_CICLO = """Eres VEGA, sistema de inteligencia sintética. Se te proporciona una lista de noticias recientes de conflictos globales.
-
-Para cada noticia genera exactamente este formato:
-
-🔹 **[TÍTULO EN ESPAÑOL]**
-📌 *Fuente: [fuente] • [fecha]*
-🧠 **Análisis:** [2-3 oraciones de análisis geopolítico concreto sobre esta noticia específica]
-🔗 [Ver artículo completo]([url])
-
-Separa cada noticia con una línea en blanco.
-Al final agrega:
-
----
-**📊 TENDENCIA DEL CICLO:** [una sola oración resumiendo el patrón dominante de este ciclo]
-
-Tono: técnico, directo. Sin introducciones ni despedidas."""
-
 PROMPT_CLASIFICAR = """Eres VEGA, sistema de clasificación de inteligencia. Analiza esta noticia y responde ÚNICAMENTE con un JSON con este formato exacto, sin texto adicional:
 
 {
@@ -33,6 +17,7 @@ PROMPT_CLASIFICAR = """Eres VEGA, sistema de clasificación de inteligencia. Ana
   "nivel": "CRÍTICO/ALTO/MEDIO/BAJO",
   "region": "Medio Oriente/Europa/África/Asia/Américas/Global",
   "categoria": "Nuclear/Militar/Humanitario/Diplomático/Terrorismo/Otro",
+  "ubicacion_precisa": "Ciudad o provincia específica si se menciona, si no 'No especificada'",
   "razon": "Una sola oración explicando la clasificación"
 }
 
@@ -40,6 +25,24 @@ Criterios para CRÍTICO: amenaza nuclear, ataque directo entre estados, masacre 
 Criterios para ALTO: ofensivas militares activas, ataques a infraestructura, crisis diplomática grave.
 Criterios para MEDIO: tensiones, movimientos de tropas, declaraciones hostiles.
 Criterios para BAJO: análisis, reportes históricos, contexto."""
+
+PROMPT_CICLO = """Eres VEGA, sistema de inteligencia sintética. Se te proporciona una lista de noticias recientes de conflictos globales.
+
+Genera un reporte de ciclo con este formato:
+
+**📊 REPORTE DE CICLO — [fecha]**
+
+**PANORAMA GENERAL:**
+[2-3 oraciones resumiendo el estado global del ciclo]
+
+**POR REGIÓN:**
+[Para cada región con actividad]:
+- **[Región]** — [1-2 oraciones del estado en esa región]
+
+**TENDENCIA DOMINANTE:** [Una sola oración]
+**NIVEL GLOBAL:** [CRÍTICO/ALTO/MEDIO/BAJO]
+
+Tono: técnico, directo. Sin introducciones."""
 
 PROMPT_ALERTA = """Eres VEGA. Genera una alerta crítica impactante en este formato exacto:
 
@@ -105,19 +108,80 @@ class Intel(commands.Cog):
                 max_tokens=200,
                 temperature=0.1
             )
-            import json
             contenido = respuesta.choices[0].message.content.strip()
             contenido = contenido.replace("```json", "").replace("```", "").strip()
             return json.loads(contenido)
         except Exception as e:
-            print(f"[VEGA] Error clasificando noticia: {e}")
+            print(f"[VEGA] Error clasificando: {e}")
             return {
                 "es_critica": False,
                 "nivel": "MEDIO",
                 "region": "Global",
                 "categoria": "Otro",
+                "ubicacion_precisa": "No especificada",
                 "razon": "Clasificación automática fallida"
             }
+
+    async def enviar_embed_individual(self, noticia: dict, clasificacion: dict):
+        region = clasificacion.get("region", "Global")
+        canal_id = REGION_CANALES.get(region)
+        if not canal_id:
+            return
+
+        canal = self.bot.get_channel(canal_id)
+        if not canal:
+            return
+
+        nivel = clasificacion["nivel"]
+        emoji = emoji_por_nivel(nivel)
+        color = color_por_nivel(nivel)
+        ubicacion = clasificacion.get("ubicacion_precisa", "No especificada")
+        categoria = clasificacion.get("categoria", "Otro")
+        razon = clasificacion.get("razon", "")
+
+        # Título con idioma original si fue traducido
+        titulo_display = noticia["titulo"]
+        if noticia.get("traducido") and noticia.get("titulo_original"):
+            titulo_display = f"{noticia['titulo']}\n*({noticia['titulo_original']})*"
+
+        embed = discord.Embed(
+            title=titulo_display[:250],
+            url=noticia["link"],
+            color=color,
+            timestamp=datetime.utcnow()
+        )
+
+        # Resumen de la noticia
+        embed.add_field(
+            name="📰 Resumen",
+            value=noticia["resumen"][:400] + "..." if len(noticia["resumen"]) > 400 else noticia["resumen"],
+            inline=False
+        )
+
+        # Análisis de Vega
+        embed.add_field(
+            name="🧠 Análisis VEGA",
+            value=razon,
+            inline=False
+        )
+
+        # Metadata en línea
+        embed.add_field(name=f"{emoji} Nivel", value=nivel, inline=True)
+        embed.add_field(name="🏷️ Tipo", value=categoria, inline=True)
+        embed.add_field(name="📍 Ubicación", value=ubicacion, inline=True)
+        embed.add_field(name="📅 Publicado", value=noticia["fecha"], inline=True)
+        embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
+
+        if noticia.get("traducido"):
+            embed.add_field(name="🌐 Idioma", value="Traducido al español", inline=True)
+
+        if noticia.get("imagen"):
+            embed.set_image(url=noticia["imagen"])
+
+        embed.set_author(name=f"VEGA INTEL — {region}")
+        embed.set_footer(text="VEGA OSINT • Protocolo de Inteligencia Sintética")
+
+        await canal.send(embed=embed)
 
     async def enviar_alerta_critica(self, noticia: dict, clasificacion: dict):
         canal_critico = self.bot.get_channel(CRITICAL_CHANNEL_ID)
@@ -129,7 +193,7 @@ class Intel(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_ALERTA},
-                    {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nFecha: {noticia['fecha']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}"}
+                    {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nFecha: {noticia['fecha']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}\nUbicación: {clasificacion.get('ubicacion_precisa', 'No especificada')}"}
                 ],
                 max_tokens=600,
                 temperature=0.2
@@ -149,58 +213,27 @@ class Intel(commands.Cog):
                 embed.set_image(url=noticia["imagen"])
 
             embed.add_field(name="🌍 Región", value=clasificacion["region"], inline=True)
-            embed.add_field(name="🏷️ Categoría", value=clasificacion["categoria"], inline=True)
+            embed.add_field(name="📍 Ubicación", value=clasificacion.get("ubicacion_precisa", "No especificada"), inline=True)
             embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
-            embed.set_footer(text=f"VEGA OSINT • Clasificado por IA • {clasificacion['razon']}")
+            embed.set_footer(text=f"VEGA OSINT • PRIORIDAD MÁXIMA")
 
             mention = "@everyone" if nivel == "CRÍTICO" else ""
             await canal_critico.send(content=mention, embed=embed)
 
             admin = self.get_admin()
             if admin:
-                admin.registrar(f"{emoji} Alerta {nivel} enviada: {noticia['titulo'][:45]}...")
+                admin.registrar(f"{emoji} Alerta {nivel}: {noticia['titulo'][:45]}...")
 
         except Exception as e:
             print(f"[VEGA] Error enviando alerta: {e}")
-
-    async def enviar_a_region(self, noticia: dict, clasificacion: dict, analisis: str):
-        region = clasificacion.get("region", "Global")
-        canal_id = REGION_CANALES.get(region)
-
-        if not canal_id:
-            return
-
-        canal = self.bot.get_channel(canal_id)
-        if not canal:
-            return
-
-        nivel = clasificacion["nivel"]
-        color = color_por_nivel(nivel)
-        emoji = emoji_por_nivel(nivel)
-
-        embed = discord.Embed(
-            title=f"{emoji} {noticia['titulo'][:250]}",
-            url=noticia["link"],
-            description=analisis,
-            color=color,
-            timestamp=datetime.utcnow()
-        )
-        embed.set_author(name=f"{clasificacion['categoria']} — {noticia['fuente']}")
-        if noticia.get("imagen"):
-            embed.set_image(url=noticia["imagen"])
-        embed.add_field(name="📅 Publicado", value=noticia["fecha"], inline=True)
-        embed.add_field(name="⚠️ Nivel", value=nivel, inline=True)
-        embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
-        embed.set_footer(text="VEGA OSINT • 🌐 Traducido automáticamente" if noticia.get("traducido") else "VEGA OSINT")
-        await canal.send(embed=embed)
 
     async def ejecutar_escaneo(self):
         admin = self.get_admin()
         if admin:
             admin.registrar("📡 Iniciando escaneo de fuentes...")
 
-        canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
-        if not canal:
+        canal_principal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
+        if not canal_principal:
             return
 
         noticias_nuevas = []
@@ -231,7 +264,7 @@ class Intel(commands.Cog):
 
                                 noticias_nuevas.append({
                                     "titulo": titulo_final,
-                                    "titulo_original": titulo,
+                                    "titulo_original": titulo if fue_traducido else None,
                                     "resumen": resumen_final,
                                     "fuente": fuente,
                                     "link": link,
@@ -246,31 +279,31 @@ class Intel(commands.Cog):
                 except Exception as e:
                     print(f"[VEGA] Error en feed {fuente}: {e}")
                     if admin:
-                        admin.registrar(f"⚠️ Error en feed {fuente}: {str(e)[:40]}")
+                        admin.registrar(f"⚠️ Error en {fuente}: {str(e)[:40]}")
 
         if not noticias_nuevas:
             if admin:
                 admin.registrar("✅ Escaneo completado — Sin noticias nuevas")
             return
 
-        # Clasificar y enrutar cada noticia con IA
         if admin:
-            admin.registrar(f"🧠 Clasificando {len(noticias_nuevas)} noticias con IA...")
+            admin.registrar(f"🧠 Clasificando {len(noticias_nuevas)} noticias...")
 
+        # Clasificar y enviar cada noticia individualmente
         for noticia in noticias_nuevas:
             clasificacion = await self.clasificar_noticia(
                 noticia["titulo"], noticia["resumen"], noticia["fuente"]
             )
             noticia["clasificacion"] = clasificacion
 
-            # Enviar a canal de región
-            await self.enviar_a_region(noticia, clasificacion, noticia["resumen"])
+            # Embed individual en canal de región
+            await self.enviar_embed_individual(noticia, clasificacion)
 
-            # Enviar alerta crítica si aplica
+            # Alerta crítica si aplica
             if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
                 await self.enviar_alerta_critica(noticia, clasificacion)
 
-        # Generar reporte de ciclo para #conflict-watch
+        # Reporte de ciclo en #conflict-watch
         contexto = ""
         for i, n in enumerate(noticias_nuevas, 1):
             c = n.get("clasificacion", {})
@@ -278,55 +311,44 @@ class Intel(commands.Cog):
             contexto += f"   FUENTE: {n['fuente']}\n"
             contexto += f"   REGIÓN: {c.get('region', 'Global')}\n"
             contexto += f"   NIVEL: {c.get('nivel', 'MEDIO')}\n"
-            contexto += f"   RESUMEN: {n['resumen']}\n"
-            contexto += f"   URL: {n['link']}\n\n"
+            contexto += f"   UBICACIÓN: {c.get('ubicacion_precisa', 'No especificada')}\n"
+            contexto += f"   RESUMEN: {n['resumen']}\n\n"
 
         try:
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_CICLO},
-                    {"role": "user", "content": f"Fecha del ciclo: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nNoticias:\n\n{contexto}"}
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{contexto}"}
                 ],
-                max_tokens=2000,
+                max_tokens=1000,
                 temperature=0.2
             )
 
             contenido = respuesta.choices[0].message.content
             hay_critica = any(n.get("clasificacion", {}).get("nivel") == "CRÍTICO" for n in noticias_nuevas)
-            color = 0xff0000 if hay_critica else 0xff8800
-            nivel_ciclo = "🔴 CICLO — ALERTA CRÍTICA DETECTADA" if hay_critica else "🟠 CICLO DE INTELIGENCIA"
+            color = 0xff0000 if hay_critica else 0x0088ff
             imagen_principal = next((n["imagen"] for n in noticias_nuevas if n["imagen"]), None)
 
-            if len(contenido) <= 4000:
-                embed = discord.Embed(title=f"📡 {nivel_ciclo}", description=contenido, color=color, timestamp=datetime.utcnow())
-                if imagen_principal:
-                    embed.set_image(url=imagen_principal)
-                embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} entradas analizadas")
-                await canal.send(embed=embed)
-            else:
-                mitad = len(contenido) // 2
-                corte = contenido.rfind("\n\n", 0, mitad)
-                parte1 = contenido[:corte]
-                parte2 = contenido[corte:]
-
-                embed1 = discord.Embed(title=f"📡 {nivel_ciclo} — Parte 1", description=parte1, color=color, timestamp=datetime.utcnow())
-                if imagen_principal:
-                    embed1.set_image(url=imagen_principal)
-                embed1.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} entradas analizadas")
-                embed2 = discord.Embed(title=f"📡 {nivel_ciclo} — Parte 2", description=parte2, color=color, timestamp=datetime.utcnow())
-                embed2.set_footer(text="VEGA OSINT • Continúa del mensaje anterior")
-                await canal.send(embed=embed1)
-                await canal.send(embed=embed2)
+            embed = discord.Embed(
+                title="📡 REPORTE DE CICLO",
+                description=contenido[:4000],
+                color=color,
+                timestamp=datetime.utcnow()
+            )
+            if imagen_principal:
+                embed.set_thumbnail(url=imagen_principal)
+            embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} noticias procesadas este ciclo")
+            await canal_principal.send(embed=embed)
 
             if admin:
                 admin.incrementar_ciclo()
                 admin.registrar(f"✅ Ciclo completado — {len(noticias_nuevas)} noticias procesadas")
 
         except Exception as e:
-            print(f"[VEGA] Error generando análisis de ciclo: {e}")
+            print(f"[VEGA] Error en reporte de ciclo: {e}")
             if admin:
-                admin.registrar(f"❌ Error en análisis IA: {str(e)[:50]}")
+                admin.registrar(f"❌ Error en reporte: {str(e)[:50]}")
 
     @tasks.loop(minutes=5)
     async def monitor(self):
@@ -339,7 +361,7 @@ class Intel(commands.Cog):
     @discord.slash_command(guild_ids=[GUILD_ID], description="Escanea todas las fuentes ahora mismo")
     async def scanfeed(self, ctx):
         await ctx.defer()
-        await ctx.respond("📡 **VEGA** — Escaneando fuentes... Resultados en `#conflict-watch`.")
+        await ctx.respond("📡 **VEGA** — Escaneando fuentes... Resultados en los canales de región.")
         await self.ejecutar_escaneo()
 
 def setup(bot):
