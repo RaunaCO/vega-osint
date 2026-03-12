@@ -12,8 +12,7 @@ VISTOS_PATH = "data/vistos.json"
 def limpiar_html(texto: str) -> str:
     return re.sub(r'<[^>]+>', '', texto).strip()
 
-def detectar_y_traducir(texto: str) -> tuple[str, bool]:
-    if not texto or len(texto) < 10:
+def detectar_y_traducir(texto: str):    if not texto or len(texto) < 10:
         return texto, False
     try:
         idioma = detect(texto)
