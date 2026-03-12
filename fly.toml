@@ -1,0 +1,8 @@
+app = "vega-osint"
+primary_region = "mia"
+
+[build]
+  builder = "paketobuildpacks/builder:base"
+
+[processes]
+  app = "python main.py"
