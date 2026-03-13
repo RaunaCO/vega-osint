@@ -5,26 +5,10 @@ from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
 from groq import Groq
-from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CANALES, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, GROQ_API_KEY, GROQ_MODEL
+from config.settings import GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CANALES, FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS, GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASIFICAR
 from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_y_traducir, extraer_imagen
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
-
-PROMPT_CLASIFICAR = """Eres VEGA, sistema de clasificación de inteligencia. Analiza esta noticia y responde ÚNICAMENTE con un JSON con este formato exacto, sin texto adicional:
-
-{
-  "es_critica": true/false,
-  "nivel": "CRÍTICO/ALTO/MEDIO/BAJO",
-  "region": "Medio Oriente/Europa/África/Asia/Américas/Global",
-  "categoria": "Nuclear/Militar/Humanitario/Diplomático/Terrorismo/Otro",
-  "ubicacion_precisa": "Ciudad o provincia específica si se menciona, si no 'No especificada'",
-  "razon": "Una sola oración explicando la clasificación"
-}
-
-Criterios para CRÍTICO: amenaza nuclear, ataque directo entre estados, masacre confirmada, uso de armas químicas, escalada mayor documentada.
-Criterios para ALTO: ofensivas militares activas, ataques a infraestructura, crisis diplomática grave.
-Criterios para MEDIO: tensiones, movimientos de tropas, declaraciones hostiles.
-Criterios para BAJO: análisis, reportes históricos, contexto."""
 
 PROMPT_CICLO = """Eres VEGA, sistema de inteligencia sintética. Se te proporciona una lista de noticias recientes de conflictos globales.
 
@@ -105,7 +89,7 @@ class Intel(commands.Cog):
                     {"role": "system", "content": PROMPT_CLASIFICAR},
                     {"role": "user", "content": f"Título: {titulo}\nResumen: {resumen}\nFuente: {fuente}"}
                 ],
-                max_tokens=200,
+                max_tokens=300,
                 temperature=0.1
             )
             contenido = respuesta.choices[0].message.content.strip()
@@ -114,11 +98,13 @@ class Intel(commands.Cog):
         except Exception as e:
             print(f"[VEGA] Error clasificando: {e}")
             return {
-                "es_critica": False,
                 "nivel": "MEDIO",
+                "es_critica": False,
                 "region": "Global",
                 "categoria": "Otro",
+                "actores_principales": [],
                 "ubicacion_precisa": "No especificada",
+                "confianza": "BAJA",
                 "razon": "Clasificación automática fallida"
             }
 
@@ -138,8 +124,9 @@ class Intel(commands.Cog):
         ubicacion = clasificacion.get("ubicacion_precisa", "No especificada")
         categoria = clasificacion.get("categoria", "Otro")
         razon = clasificacion.get("razon", "")
+        actores = ", ".join(clasificacion.get("actores_principales", [])) or "No identificados"
+        confianza = clasificacion.get("confianza", "MEDIA")
 
-        # Título con idioma original si fue traducido
         titulo_display = noticia["titulo"]
         if noticia.get("traducido") and noticia.get("titulo_original"):
             titulo_display = f"{noticia['titulo']}\n*({noticia['titulo_original']})*"
@@ -151,25 +138,18 @@ class Intel(commands.Cog):
             timestamp=datetime.utcnow()
         )
 
-        # Resumen de la noticia
         embed.add_field(
             name="📰 Resumen",
             value=noticia["resumen"][:400] + "..." if len(noticia["resumen"]) > 400 else noticia["resumen"],
             inline=False
         )
 
-        # Análisis de Vega
-        embed.add_field(
-            name="🧠 Análisis VEGA",
-            value=razon,
-            inline=False
-        )
-
-        # Metadata en línea
+        embed.add_field(name="🧠 Análisis VEGA", value=razon, inline=False)
         embed.add_field(name=f"{emoji} Nivel", value=nivel, inline=True)
         embed.add_field(name="🏷️ Tipo", value=categoria, inline=True)
+        embed.add_field(name="🎯 Confianza", value=confianza, inline=True)
         embed.add_field(name="📍 Ubicación", value=ubicacion, inline=True)
-        embed.add_field(name="📅 Publicado", value=noticia["fecha"], inline=True)
+        embed.add_field(name="👥 Actores", value=actores, inline=True)
         embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
 
         if noticia.get("traducido"):
@@ -193,7 +173,7 @@ class Intel(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_ALERTA},
-                    {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nFecha: {noticia['fecha']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}\nUbicación: {clasificacion.get('ubicacion_precisa', 'No especificada')}"}
+                    {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nFecha: {noticia['fecha']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}\nActores: {', '.join(clasificacion.get('actores_principales', []))}\nUbicación: {clasificacion.get('ubicacion_precisa', 'No especificada')}"}
                 ],
                 max_tokens=600,
                 temperature=0.2
@@ -214,8 +194,9 @@ class Intel(commands.Cog):
 
             embed.add_field(name="🌍 Región", value=clasificacion["region"], inline=True)
             embed.add_field(name="📍 Ubicación", value=clasificacion.get("ubicacion_precisa", "No especificada"), inline=True)
+            embed.add_field(name="👥 Actores", value=", ".join(clasificacion.get("actores_principales", [])) or "No identificados", inline=True)
             embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
-            embed.set_footer(text=f"VEGA OSINT • PRIORIDAD MÁXIMA")
+            embed.set_footer(text="VEGA OSINT • PRIORIDAD MÁXIMA")
 
             mention = "@everyone" if nivel == "CRÍTICO" else ""
             await canal_critico.send(content=mention, embed=embed)
@@ -289,21 +270,16 @@ class Intel(commands.Cog):
         if admin:
             admin.registrar(f"🧠 Clasificando {len(noticias_nuevas)} noticias...")
 
-        # Clasificar y enviar cada noticia individualmente
         for noticia in noticias_nuevas:
             clasificacion = await self.clasificar_noticia(
                 noticia["titulo"], noticia["resumen"], noticia["fuente"]
             )
             noticia["clasificacion"] = clasificacion
-
-            # Embed individual en canal de región
             await self.enviar_embed_individual(noticia, clasificacion)
 
-            # Alerta crítica si aplica
             if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
                 await self.enviar_alerta_critica(noticia, clasificacion)
 
-        # Reporte de ciclo en #conflict-watch
         contexto = ""
         for i, n in enumerate(noticias_nuevas, 1):
             c = n.get("clasificacion", {})
@@ -312,6 +288,7 @@ class Intel(commands.Cog):
             contexto += f"   REGIÓN: {c.get('region', 'Global')}\n"
             contexto += f"   NIVEL: {c.get('nivel', 'MEDIO')}\n"
             contexto += f"   UBICACIÓN: {c.get('ubicacion_precisa', 'No especificada')}\n"
+            contexto += f"   ACTORES: {', '.join(c.get('actores_principales', []))}\n"
             contexto += f"   RESUMEN: {n['resumen']}\n\n"
 
         try:
@@ -338,7 +315,7 @@ class Intel(commands.Cog):
             )
             if imagen_principal:
                 embed.set_thumbnail(url=imagen_principal)
-            embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} noticias procesadas este ciclo")
+            embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} noticias procesadas")
             await canal_principal.send(embed=embed)
 
             if admin:

@@ -11,7 +11,7 @@ LOGS_CHANNEL_ID = int(os.getenv("LOGS_CHANNEL_ID"))
 CRITICAL_CHANNEL_ID = int(os.getenv("CRITICAL_CHANNEL_ID"))
 OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
 MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
-EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
+
 REGION_CANALES = {
     "Medio Oriente": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
     "Europa":        int(os.getenv("REGION_EUROPA_ID")),
@@ -82,3 +82,54 @@ Tu función es generar SITREPs (Situational Reports) con el siguiente formato es
 Responde siempre en español. Tono: técnico, directo, sin adornos.
 Basa tu análisis ÚNICAMENTE en las noticias reales que se te proporcionan.
 Si no hay suficiente información, indícalo claramente."""
+
+PROMPT_CLASIFICAR = """Eres VEGA, sistema de clasificación de inteligencia militar. Analiza esta noticia con criterios de doctrina de inteligencia.
+
+CRITERIOS DE CLASIFICACIÓN:
+
+CRÍTICO — Requiere acción inmediata:
+- Uso confirmado de armas nucleares, químicas o biológicas
+- Ataque directo entre estados soberanos con bajas confirmadas
+- Masacre o crimen de guerra documentado con evidencia
+- Escalada que amenaza estabilidad regional inmediata
+- Colapso de alto al fuego activo con reanudación de hostilidades
+
+ALTO — Situación grave en desarrollo:
+- Ofensiva militar activa con avance territorial confirmado
+- Ataque a infraestructura crítica (energía, agua, comunicaciones)
+- Crisis diplomática con ruptura de relaciones o expulsión de embajadores
+- Movilización militar masiva documentada
+- Atentado terrorista de alto impacto
+
+MEDIO — Situación que requiere monitoreo:
+- Tensiones diplomáticas activas sin escalada inmediata
+- Movimientos de tropas sin contacto confirmado
+- Declaraciones hostiles entre líderes de estado
+- Protestas o disturbios con potencial de escalada
+- Negociaciones en riesgo de colapso
+
+BAJO — Contexto e información de fondo:
+- Análisis, opinión o contexto histórico
+- Declaraciones de organizaciones internacionales sin acción
+- Reportes de inteligencia sin confirmación
+- Desarrollos diplomáticos positivos
+
+REGIONES:
+- Medio Oriente: Israel, Gaza, Palestina, Líbano, Siria, Irán, Iraq, Yemen, Arabia Saudita, Turquía
+- Europa: Ucrania, Rusia, OTAN, Bielorrusia, Moldavia, Balcanes, Europa Oriental
+- África: Sudán, Sahel, Mali, Níger, Somalia, RDC, Etiopía, Mozambique
+- Asia: China, Taiwan, Corea del Norte, Myanmar, Afganistán, Pakistán, India
+- Américas: Venezuela, Haití, Colombia, México, Ecuador
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional:
+
+{
+  "nivel": "CRÍTICO/ALTO/MEDIO/BAJO",
+  "es_critica": true/false,
+  "region": "Medio Oriente/Europa/África/Asia/Américas/Global",
+  "categoria": "Nuclear/Químico/Militar/Humanitario/Diplomático/Terrorismo/Inteligencia/Otro",
+  "actores_principales": ["actor1", "actor2"],
+  "ubicacion_precisa": "Ciudad, provincia o región específica mencionada en la noticia",
+  "confianza": "ALTA/MEDIA/BAJA",
+  "razon": "Una sola oración técnica explicando la clasificación"
+}"""
