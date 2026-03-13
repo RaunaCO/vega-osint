@@ -73,6 +73,7 @@ class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.vistos = cargar_vistos()
+        self.mensaje_ciclo = None
         self.monitor.start()
 
     def cog_unload(self):
@@ -208,6 +209,32 @@ class Intel(commands.Cog):
         except Exception as e:
             print(f"[VEGA] Error enviando alerta: {e}")
 
+    async def actualizar_reporte_ciclo(self, canal, contenido: str, noticias: list):
+        hay_critica = any(n.get("clasificacion", {}).get("nivel") == "CRÍTICO" for n in noticias)
+        color = 0xff0000 if hay_critica else 0x0088ff
+        imagen_principal = next((n["imagen"] for n in noticias if n.get("imagen")), None)
+
+        embed = discord.Embed(
+            title="📡 ÚLTIMO REPORTE DE CICLO",
+            description=contenido[:4000],
+            color=color,
+            timestamp=datetime.utcnow()
+        )
+        if imagen_principal:
+            embed.set_thumbnail(url=imagen_principal)
+        embed.set_footer(text=f"VEGA OSINT • {len(noticias)} noticias • Actualizado cada ciclo")
+
+        try:
+            if self.mensaje_ciclo:
+                await self.mensaje_ciclo.edit(embed=embed)
+            else:
+                await canal.purge(limit=5)
+                self.mensaje_ciclo = await canal.send(embed=embed)
+        except discord.NotFound:
+            self.mensaje_ciclo = await canal.send(embed=embed)
+        except Exception as e:
+            print(f"[VEGA] Error actualizando reporte: {e}")
+
     async def ejecutar_escaneo(self):
         admin = self.get_admin()
         if admin:
@@ -303,20 +330,7 @@ class Intel(commands.Cog):
             )
 
             contenido = respuesta.choices[0].message.content
-            hay_critica = any(n.get("clasificacion", {}).get("nivel") == "CRÍTICO" for n in noticias_nuevas)
-            color = 0xff0000 if hay_critica else 0x0088ff
-            imagen_principal = next((n["imagen"] for n in noticias_nuevas if n["imagen"]), None)
-
-            embed = discord.Embed(
-                title="📡 REPORTE DE CICLO",
-                description=contenido[:4000],
-                color=color,
-                timestamp=datetime.utcnow()
-            )
-            if imagen_principal:
-                embed.set_thumbnail(url=imagen_principal)
-            embed.set_footer(text=f"VEGA OSINT • {len(noticias_nuevas)} noticias procesadas")
-            await canal_principal.send(embed=embed)
+            await self.actualizar_reporte_ciclo(canal_principal, contenido, noticias_nuevas)
 
             if admin:
                 admin.incrementar_ciclo()
