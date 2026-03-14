@@ -1,6 +1,7 @@
 import discord
 import feedparser
 import json
+import asyncio
 from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
@@ -306,6 +307,8 @@ class Intel(commands.Cog):
 
             if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
                 await self.enviar_alerta_critica(noticia, clasificacion)
+
+            await asyncio.sleep(2)
 
         contexto = ""
         for i, n in enumerate(noticias_nuevas, 1):
