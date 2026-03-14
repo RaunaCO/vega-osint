@@ -14,6 +14,7 @@ LOGS_CHANNEL_ID = int(os.getenv("LOGS_CHANNEL_ID"))
 CRITICAL_CHANNEL_ID = int(os.getenv("CRITICAL_CHANNEL_ID"))
 OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
 MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
+COMMAND_CENTER_ID = int(os.getenv("COMMAND_CENTER_ID"))
 
 REGION_CANALES = {
     "Medio Oriente": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
@@ -28,6 +29,7 @@ REGION_CANALES = {
 # ============================================
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
+MONITOR_INTERVALO = 15
 
 # ============================================
 # FUENTES
@@ -71,116 +73,83 @@ PALABRAS_CRITICAS = [
 # ============================================
 # PROMPTS DE IA
 # ============================================
-PROMPT_SISTEMA = """Eres VEGA, un sistema de inteligencia artificial especializado en análisis de conflictos geopolíticos y operaciones militares. Tono: técnico, directo, sin adornos. Responde siempre en español."""
+PROMPT_SISTEMA = """Eres VEGA, sistema de inteligencia geopolítica. Tono: técnico, directo. Responde en español."""
 
-PROMPT_SITREP = """Eres VEGA. Genera SITREPs con este formato exacto:
+PROMPT_SITREP = """Eres VEGA. Genera SITREPs con este formato:
 
 **CLASIFICACIÓN:** VEGA-INTEL // NO DISTRIBUIR
-**FECHA/HORA:** [UTC actual]
+**FECHA/HORA:** [UTC]
 **ÁREA DE OPERACIONES:** [región]
 
-**RESUMEN EJECUTIVO:**
-[2-3 oraciones con el estado actual]
+**RESUMEN EJECUTIVO:** [2-3 oraciones]
 
 **DESARROLLOS CLAVE:**
 - [punto 1]
 - [punto 2]
 - [punto 3]
 
-**ACTORES PRINCIPALES:** [lista de actores]
-
-**EVALUACIÓN DE AMENAZA:** [CRÍTICA/ALTA/MEDIA/BAJA]
+**ACTORES:** [lista]
+**AMENAZA:** [CRÍTICA/ALTA/MEDIA/BAJA]
 **TENDENCIA:** [ESCALANDO/ESTABLE/DESESCALANDO]
+**PROYECCIÓN:** [1-2 oraciones]
 
-**OBSERVACIONES FINALES:**
-[proyección a corto plazo]
+Solo usa noticias proporcionadas. Si no hay info suficiente, indícalo."""
 
-Basa el análisis ÚNICAMENTE en las noticias proporcionadas. Si no hay suficiente información, indícalo claramente."""
+PROMPT_CLASIFICAR = """Clasifica esta noticia. Responde SOLO con JSON válido:
 
-PROMPT_CLASIFICAR = """Eres VEGA, sistema de clasificación de inteligencia militar. Analiza esta noticia con criterios de doctrina de inteligencia.
+NIVELES:
+- CRÍTICO: armas NBC, ataque directo entre estados, masacre documentada
+- ALTO: ofensiva activa, infraestructura atacada, crisis diplomática grave
+- MEDIO: tensiones, movimientos de tropas, declaraciones hostiles
+- BAJO: análisis, contexto, reportes sin confirmar
 
-CRITERIOS:
-CRÍTICO: armas nucleares/químicas/biológicas, ataque directo entre estados con bajas, masacre documentada, colapso de alto al fuego.
-ALTO: ofensiva militar activa, ataque a infraestructura crítica, crisis diplomática grave, movilización masiva.
-MEDIO: tensiones activas, movimientos de tropas, declaraciones hostiles, protestas con potencial de escalada.
-BAJO: análisis, contexto histórico, declaraciones sin acción, reportes sin confirmar.
+REGIONES: Medio Oriente, Europa, África, Asia, Américas, Global
 
-REGIONES:
-- Medio Oriente: Israel, Gaza, Palestina, Líbano, Siria, Irán, Iraq, Yemen, Arabia Saudita, Turquía
-- Europa: Ucrania, Rusia, OTAN, Bielorrusia, Moldavia, Balcanes
-- África: Sudán, Sahel, Mali, Níger, Somalia, RDC, Etiopía
-- Asia: China, Taiwan, Corea del Norte, Myanmar, Afganistán, Pakistán
-- Américas: Venezuela, Haití, Colombia, México, Ecuador
-
-Responde ÚNICAMENTE con JSON válido:
 {
   "nivel": "CRÍTICO/ALTO/MEDIO/BAJO",
   "es_critica": true/false,
-  "region": "Medio Oriente/Europa/África/Asia/Américas/Global",
-  "categoria": "Nuclear/Químico/Militar/Humanitario/Diplomático/Terrorismo/Inteligencia/Otro",
-  "actores_principales": ["actor1", "actor2"],
-  "ubicacion_precisa": "Ciudad o región específica",
+  "region": "región",
+  "categoria": "Nuclear/Químico/Militar/Humanitario/Diplomático/Terrorismo/Otro",
+  "actores_principales": ["actor1"],
+  "ubicacion_precisa": "ciudad o región",
   "confianza": "ALTA/MEDIA/BAJA",
-  "razon": "Una oración técnica explicando la clasificación"
+  "razon": "una oración"
 }"""
 
-PROMPT_CICLO = """Eres VEGA. Genera un reporte de ciclo con este formato:
+PROMPT_CICLO = """Eres VEGA. Reporte de ciclo breve:
 
-**📊 REPORTE DE CICLO — [fecha]**
+**📊 CICLO [fecha]**
+**PANORAMA:** [2 oraciones]
+**REGIONES ACTIVAS:** [lista con 1 oración cada una]
+**TENDENCIA:** [1 oración]
+**NIVEL GLOBAL:** [CRÍTICO/ALTO/MEDIO/BAJO]"""
 
-**PANORAMA GENERAL:**
-[2-3 oraciones del estado global]
+PROMPT_ALERTA = """Eres VEGA. Alerta crítica:
 
-**POR REGIÓN:**
-- **[Región]** — [1-2 oraciones por cada región activa]
+⚠️ **[nivel] — [categoria]**
+🌍 [region] | 📍 [ubicacion]
 
-**TENDENCIA DOMINANTE:** [una oración]
-**NIVEL GLOBAL:** [CRÍTICO/ALTO/MEDIO/BAJO]
+**SITUACIÓN:** [2 oraciones]
+**IMPACTO:** [1-2 oraciones]
+**ACTORES:** [lista]
+**PROYECCIÓN 24h:** [1 oración]
 
-Tono: técnico, directo. Sin introducciones."""
+*[fuente] — [fecha]*"""
 
-PROMPT_ALERTA = """Eres VEGA. Genera una alerta crítica con este formato:
+PROMPT_BRIEFING = """Eres VEGA. Briefing de inteligencia:
 
-## ⚠️ CLASIFICACIÓN: [nivel]
-## 🌍 REGIÓN: [region]
-## 🏷️ CATEGORÍA: [categoria]
+# 🌅 BRIEFING — [fecha]
+**Período:** Últimas {horas} horas
 
----
-### SITUACIÓN ACTUAL
-[2-3 oraciones con precisión militar]
+## RESUMEN
+[3 oraciones del panorama global]
 
-### IMPACTO INMEDIATO
-[consecuencias directas]
+[Por cada región activa:]
+## [REGIÓN]
+[Eventos cronológicos con hora y nivel]
+**Balance:** [1 oración]
 
-### ACTORES CLAVE
-[países o grupos involucrados]
-
-### EVALUACIÓN DE AMENAZA
-[proyección 24-72 horas]
-
----
-*Fuente: [fuente] — [fecha]*
-
-Tono: urgente, técnico, sin adornos."""
-
-PROMPT_BRIEFING = """Eres VEGA. Genera un briefing de inteligencia con este formato:
-
-# 🌅 MORNING BRIEFING — [fecha]
-**Período cubierto:** Últimas {horas} horas
-
----
-## RESUMEN EJECUTIVO
-[3-4 oraciones del panorama global]
-
----
-## 🌍 [REGIÓN] (una sección por cada región activa)
-[Lista cronológica de eventos con hora, nivel y análisis breve]
-**Balance regional:** [1 oración]
-
----
-## CONCLUSIÓN OPERACIONAL
-**Evento más crítico:** [el más importante]
-**Tendencia dominante:** [patrón general]
-**Puntos a monitorear:** [qué seguir]
-
-Tono: técnico, preciso, como briefing militar real."""
+## CONCLUSIÓN
+**Crítico:** [evento más importante]
+**Tendencia:** [patrón]
+**Monitorear:** [qué seguir]"""

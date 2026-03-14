@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
-from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID
+from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID
 from utils.helpers import cargar_vistos
 import os
 
@@ -15,13 +15,17 @@ class VegaAdmin(commands.Cog):
         self.ultimo_escaneo = "Nunca"
         self.mensaje_status = None
         self.mensaje_logs = None
+        self.mensaje_command_center = None
         self.log_eventos = []
+        self.ultimas_noticias = []
         self.actualizar_status.start()
         self.actualizar_logs.start()
+        self.actualizar_command_center.start()
 
     def cog_unload(self):
         self.actualizar_status.cancel()
         self.actualizar_logs.cancel()
+        self.actualizar_command_center.cancel()
 
     def incrementar_ciclo(self):
         self.ciclos_completados += 1
@@ -32,6 +36,11 @@ class VegaAdmin(commands.Cog):
         self.log_eventos.append(f"`{hora}` {evento}")
         if len(self.log_eventos) > 20:
             self.log_eventos.pop(0)
+
+    def registrar_noticia(self, noticia: dict):
+        self.ultimas_noticias.insert(0, noticia)
+        if len(self.ultimas_noticias) > 8:
+            self.ultimas_noticias.pop()
 
     def construir_embed_status(self):
         ahora = datetime.now(timezone.utc)
@@ -71,6 +80,70 @@ class VegaAdmin(commands.Cog):
         embed.set_footer(text="VEGA OSINT • Últimos 20 eventos — Actualizado cada 10 segundos")
         return embed
 
+    def construir_embed_command_center(self):
+        ahora = datetime.now(timezone.utc)
+
+        # Regiones activas de las últimas noticias
+        regiones_activas = {}
+        for n in self.ultimas_noticias:
+            region = n.get("region", "Global")
+            nivel = n.get("nivel", "MEDIO")
+            if region not in regiones_activas or nivel == "CRÍTICO":
+                regiones_activas[region] = nivel
+
+        niveles_emoji = {"CRÍTICO": "🔴", "ALTO": "🟠", "MEDIO": "🟡", "BAJO": "🟢"}
+
+        # Estado global
+        nivel_global = "CRÍTICO" if "CRÍTICO" in regiones_activas.values() else \
+                       "ALTO" if "ALTO" in regiones_activas.values() else \
+                       "MEDIO" if regiones_activas else "BAJO"
+
+        embed = discord.Embed(
+            title="🌍 VEGA — SITUACIÓN GLOBAL EN VIVO",
+            description=f"```\nNIVEL GLOBAL: {nivel_global}\n```",
+            color={"CRÍTICO": 0xff0000, "ALTO": 0xff6600, "MEDIO": 0xffaa00, "BAJO": 0x00ff41}.get(nivel_global, 0x0088ff),
+            timestamp=ahora
+        )
+
+        # Regiones activas
+        if regiones_activas:
+            regiones_texto = "\n".join([
+                f"{niveles_emoji.get(nivel, '🟡')} **{region}** — {nivel}"
+                for region, nivel in regiones_activas.items()
+            ])
+        else:
+            regiones_texto = "*Sin actividad reciente*"
+
+        embed.add_field(name="📡 REGIONES ACTIVAS", value=regiones_texto, inline=False)
+
+        # Últimas noticias
+        if self.ultimas_noticias:
+            noticias_texto = "\n".join([
+                f"{niveles_emoji.get(n.get('nivel', 'MEDIO'), '🟡')} [{n.get('hora', '')}] {n.get('titulo', '')[:60]}..."
+                for n in self.ultimas_noticias[:5]
+            ])
+        else:
+            noticias_texto = "*Esperando primer ciclo de inteligencia...*"
+
+        embed.add_field(name="📰 ÚLTIMAS ENTRADAS", value=noticias_texto, inline=False)
+
+        # Comandos disponibles
+        comandos = (
+            "`/scanfeed` — Escanear fuentes ahora\n"
+            "`/sitrep` — Generar informe de situación\n"
+            "`/briefing` — Resumen de las últimas horas\n"
+            "`/analizar` — Analizar texto con IA\n"
+            "`/resumen` — Resumir canal de noticias\n"
+            "`/userrecon` — Reconocimiento de usuario\n"
+            "`/purgar` — Limpiar canal\n"
+            "`/limpiar` — Resetear memoria\n"
+            "`/pausar` — Pausar/reanudar monitor\n"
+            "`/intervalo` — Cambiar frecuencia"
+        )
+        embed.add_field(name="⚙️ COMANDOS DISPONIBLES", value=comandos, inline=False)
+        embed.set_footer(text="VEGA OSINT • Actualizado cada 30 segundos")
+        return embed
+
     @tasks.loop(seconds=10)
     async def actualizar_status(self):
         canal = self.bot.get_channel(STATUS_CHANNEL_ID)
@@ -105,12 +178,33 @@ class VegaAdmin(commands.Cog):
         except Exception as e:
             print(f"[VEGA] Error actualizando logs: {e}")
 
+    @tasks.loop(seconds=30)
+    async def actualizar_command_center(self):
+        canal = self.bot.get_channel(COMMAND_CENTER_ID)
+        if not canal:
+            return
+        embed = self.construir_embed_command_center()
+        try:
+            if self.mensaje_command_center:
+                await self.mensaje_command_center.edit(embed=embed)
+            else:
+                await canal.purge(limit=10)
+                self.mensaje_command_center = await canal.send(embed=embed)
+        except discord.NotFound:
+            self.mensaje_command_center = await canal.send(embed=embed)
+        except Exception as e:
+            print(f"[VEGA] Error actualizando command center: {e}")
+
     @actualizar_status.before_loop
     async def before_status(self):
         await self.bot.wait_until_ready()
 
     @actualizar_logs.before_loop
     async def before_logs(self):
+        await self.bot.wait_until_ready()
+
+    @actualizar_command_center.before_loop
+    async def before_command_center(self):
         await self.bot.wait_until_ready()
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Muestra el estado actual de Vega")
@@ -174,7 +268,7 @@ class VegaAdmin(commands.Cog):
     @discord.slash_command(guild_ids=[GUILD_ID], description="Purga todos los mensajes de un canal")
     async def purgar(self, ctx, canal: discord.Option(discord.TextChannel, description="Canal a limpiar")):
         await ctx.defer()
-        canales_protegidos = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID]
+        canales_protegidos = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID]
         if canal.id in canales_protegidos:
             await ctx.respond("⚠️ **VEGA** — Ese canal está protegido.")
             return

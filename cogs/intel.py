@@ -104,7 +104,7 @@ class Intel(commands.Cog):
                     {"role": "system", "content": PROMPT_ALERTA},
                     {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}\nActores: {', '.join(clasificacion.get('actores_principales', []))}\nUbicación: {clasificacion.get('ubicacion_precisa', 'N/A')}"}
                 ],
-                max_tokens=600,
+                max_tokens=400,
                 temperature=0.2
             )
             nivel = clasificacion["nivel"]
@@ -196,8 +196,16 @@ class Intel(commands.Cog):
                                     "imagen": imagen,
                                     "traducido": traducido
                                 })
+
                                 if admin:
                                     admin.registrar(f"🟠 [{fuente}] {titulo_final[:45]}...")
+                                    admin.registrar_noticia({
+                                        "titulo": titulo_final,
+                                        "nivel": "MEDIO",
+                                        "region": "Global",
+                                        "hora": datetime.utcnow().strftime("%H:%M")
+                                    })
+
                 except Exception as e:
                     print(f"[VEGA] Error en feed {fuente}: {e}")
                     if admin:
@@ -208,7 +216,6 @@ class Intel(commands.Cog):
                 admin.registrar("✅ Escaneo completado — Sin noticias nuevas")
             return
 
-        # Limitar a 5 noticias por ciclo para evitar rate limit
         noticias_nuevas = noticias_nuevas[:5]
 
         if admin:
@@ -218,6 +225,15 @@ class Intel(commands.Cog):
             clasificacion = await self.clasificar_noticia(noticia["titulo"], noticia["resumen"], noticia["fuente"])
             noticia["clasificacion"] = clasificacion
             await self.enviar_embed_individual(noticia, clasificacion)
+
+            if admin:
+                admin.registrar_noticia({
+                    "titulo": noticia["titulo"],
+                    "nivel": clasificacion.get("nivel", "MEDIO"),
+                    "region": clasificacion.get("region", "Global"),
+                    "hora": datetime.utcnow().strftime("%H:%M")
+                })
+
             if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
                 await self.enviar_alerta_critica(noticia, clasificacion)
             await asyncio.sleep(4)
@@ -234,7 +250,7 @@ class Intel(commands.Cog):
                     {"role": "system", "content": PROMPT_CICLO},
                     {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{contexto}"}
                 ],
-                max_tokens=1000,
+                max_tokens=600,
                 temperature=0.2
             )
             await self.actualizar_reporte_ciclo(canal_principal, respuesta.choices[0].message.content, noticias_nuevas)
@@ -247,7 +263,7 @@ class Intel(commands.Cog):
             if admin:
                 admin.registrar(f"❌ Error en reporte: {str(e)[:50]}")
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=15)
     async def monitor(self):
         await self.ejecutar_escaneo()
 
