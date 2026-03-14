@@ -67,7 +67,7 @@ class Intel(commands.Cog):
 
         nivel = clasificacion["nivel"]
         embed = discord.Embed(
-            title=f"{noticia['titulo'][:250]}",
+            title=noticia["titulo"][:250],
             url=noticia["link"],
             color=color_por_nivel(nivel),
             timestamp=datetime.utcnow()
@@ -207,6 +207,9 @@ class Intel(commands.Cog):
             if admin:
                 admin.registrar("✅ Escaneo completado — Sin noticias nuevas")
             return
+
+        # Limitar a 5 noticias por ciclo para evitar rate limit
+        noticias_nuevas = noticias_nuevas[:5]
 
         if admin:
             admin.registrar(f"🧠 Clasificando {len(noticias_nuevas)} noticias...")
