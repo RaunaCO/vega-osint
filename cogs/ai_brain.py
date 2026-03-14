@@ -2,7 +2,11 @@ import discord
 from discord.ext import commands
 from groq import Groq
 from datetime import datetime, timezone, timedelta
-from config.settings import GUILD_ID, GROQ_API_KEY, GROQ_MODEL, SYSTEM_PROMPT, CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CANALES
+from config.settings import (
+    GUILD_ID, GROQ_API_KEY, GROQ_MODEL,
+    PROMPT_SITREP, PROMPT_SISTEMA, PROMPT_BRIEFING,
+    CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CANALES
+)
 from utils.helpers import buscar_noticias_relevantes
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
@@ -16,12 +20,12 @@ class AIBrain(commands.Cog):
         if not canal:
             return
         embed = discord.Embed(
-            title=f"📋 SITREP ARCHIVADO — {tema.upper()}",
+            title=f"📋 SITREP — {tema.upper()}",
             description=contenido[:4000],
             color=0x2b2d31,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_footer(text=f"VEGA OSINT • {fuentes} fuentes • Solicitado por {autor}")
+        embed.set_footer(text=f"VEGA OSINT • {fuentes} fuentes • Por {autor}")
         await canal.send(embed=embed)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Genera un SITREP basado en noticias reales")
@@ -34,24 +38,21 @@ class AIBrain(commands.Cog):
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nTema: {tema}\n\n{contexto}"}
+                    {"role": "system", "content": PROMPT_SITREP},
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\nTema: {tema}\n\n{contexto}"}
                 ],
                 max_tokens=1024,
                 temperature=0.2
             )
-
             contenido = respuesta.choices[0].message.content[:4000]
             embed = discord.Embed(title=f"📋 SITREP — {tema.upper()}", description=contenido, color=0x00ff41, timestamp=datetime.now(timezone.utc))
             embed.set_footer(text=f"VEGA OSINT • {len(noticias)} fuentes analizadas")
             await ctx.respond(embed=embed)
-
             await self.archivar_sitrep(tema, contenido, len(noticias), ctx.author.display_name)
 
-            admin = self.bot.cogs.get("Admin")
+            admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"📋 /sitrep generado: {tema[:40]} — {len(noticias)} fuentes")
-
+                admin.registrar(f"📋 /sitrep: {tema[:40]} — {len(noticias)} fuentes")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
@@ -62,72 +63,58 @@ class AIBrain(commands.Cog):
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnaliza este texto:\n\n{texto}"}
+                    {"role": "system", "content": PROMPT_SISTEMA},
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnaliza este texto desde perspectiva de inteligencia geopolítica:\n\n{texto}"}
                 ],
                 max_tokens=800,
                 temperature=0.2
             )
-            contenido = respuesta.choices[0].message.content
-            embed = discord.Embed(title="🧠 ANÁLISIS DE INTELIGENCIA", description=contenido, color=0x7700ff, timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(title="🧠 ANÁLISIS DE INTELIGENCIA", description=respuesta.choices[0].message.content, color=0x7700ff, timestamp=datetime.now(timezone.utc))
             embed.set_footer(text="VEGA OSINT • Verificar fuentes primarias")
             await ctx.respond(embed=embed)
 
-            admin = self.bot.cogs.get("Admin")
+            admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"🧠 /analizar ejecutado por {ctx.author.display_name}")
-
+                admin.registrar(f"🧠 /analizar por {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Resume las últimas noticias del canal de inteligencia")
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Resume las últimas noticias del canal")
     async def resumen(self, ctx, cantidad: int = 10):
         await ctx.defer()
         try:
             canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
             if not canal:
-                await ctx.respond("⚠️ **VEGA** — Canal de inteligencia no encontrado.")
+                await ctx.respond("⚠️ **VEGA** — Canal no encontrado.")
                 return
 
             mensajes = []
             async for mensaje in canal.history(limit=cantidad):
                 if mensaje.author == self.bot.user and mensaje.embeds:
                     embed = mensaje.embeds[0]
-                    titulo = embed.title or ""
-                    descripcion = embed.description or ""
-                    mensajes.append(f"• {titulo}\n{descripcion[:200]}")
+                    mensajes.append(f"• {embed.title or ''}\n{(embed.description or '')[:200]}")
 
             if not mensajes:
-                await ctx.respond("⚠️ **VEGA** — No hay noticias recientes en el canal.")
+                await ctx.respond("⚠️ **VEGA** — No hay noticias recientes.")
                 return
 
             mensajes.reverse()
-            contexto = "\n\n".join(mensajes)
-
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenera un resumen ejecutivo de estas noticias recientes:\n\n{contexto}"}
+                    {"role": "system", "content": PROMPT_SISTEMA},
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenera un resumen ejecutivo de estas noticias:\n\n" + "\n\n".join(mensajes)}
                 ],
                 max_tokens=800,
                 temperature=0.2
             )
-
-            contenido = respuesta.choices[0].message.content
-            embed = discord.Embed(
-                title=f"📊 RESUMEN EJECUTIVO — Últimas {len(mensajes)} noticias",
-                description=contenido,
-                color=0x0088ff,
-                timestamp=datetime.now(timezone.utc)
-            )
-            embed.set_footer(text=f"VEGA OSINT • Basado en {len(mensajes)} entradas recientes")
+            embed = discord.Embed(title=f"📊 RESUMEN — Últimas {len(mensajes)} noticias", description=respuesta.choices[0].message.content, color=0x0088ff, timestamp=datetime.now(timezone.utc))
+            embed.set_footer(text=f"VEGA OSINT • {len(mensajes)} entradas")
             await ctx.respond(embed=embed)
 
-            admin = self.bot.cogs.get("Admin")
+            admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"📊 /resumen ejecutado por {ctx.author.display_name}")
-
+                admin.registrar(f"📊 /resumen por {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
@@ -143,103 +130,55 @@ class AIBrain(commands.Cog):
                 canal = self.bot.get_channel(canal_id)
                 if not canal:
                     continue
-
                 entradas = []
                 async for mensaje in canal.history(limit=100, after=limite):
                     if mensaje.author == self.bot.user and mensaje.embeds:
                         embed = mensaje.embeds[0]
-                        titulo = embed.title or ""
-                        nivel = "MEDIO"
-                        ubicacion = "No especificada"
-                        for field in embed.fields:
-                            if "Nivel" in field.name:
-                                nivel = field.value
-                            if "Ubicación" in field.name:
-                                ubicacion = field.value
+                        nivel = next((f.value for f in embed.fields if "Nivel" in f.name), "MEDIO")
+                        ubicacion = next((f.value for f in embed.fields if "Ubicación" in f.name), "N/A")
                         hora_msg = mensaje.created_at.strftime("%H:%M UTC")
-                        entradas.append(f"[{hora_msg}] [{nivel}] {titulo} — 📍{ubicacion}")
-
+                        entradas.append(f"[{hora_msg}] [{nivel}] {embed.title} — 📍{ubicacion}")
                 if entradas:
                     noticias_por_region[region] = entradas
 
             if not noticias_por_region:
-                await ctx.respond(f"⚠️ **VEGA** — Sin actividad registrada en las últimas {horas} horas.")
+                await ctx.respond(f"⚠️ **VEGA** — Sin actividad en las últimas {horas} horas.")
                 return
 
             contexto = ""
             for region, entradas in noticias_por_region.items():
-                contexto += f"\n## {region}\n"
-                for entrada in entradas:
-                    contexto += f"{entrada}\n"
+                contexto += f"\n## {region}\n" + "\n".join(entradas)
 
-            PROMPT_BRIEFING = f"""Eres VEGA. Genera un briefing de inteligencia de las últimas {horas} horas.
-
-Formato exacto:
-
-# 🌅 MORNING BRIEFING — {{fecha}}
-**Período cubierto:** Últimas {horas} horas
-
----
-
-## RESUMEN EJECUTIVO
-[3-4 oraciones describiendo el panorama global del período]
-
----
-
-[Para cada región con actividad, en orden cronológico]:
-
-## 🌍 [REGIÓN]
-[Lista cronológica de eventos con hora, nivel y análisis breve de cada uno]
-**Balance regional:** [1 oración del estado final de la región]
-
----
-
-## CONCLUSIÓN OPERACIONAL
-**Evento más crítico:** [el más importante del período]
-**Tendencia dominante:** [patrón general observado]
-**Puntos a monitorear:** [qué seguir en las próximas horas]
-
-Tono: técnico, preciso, como un briefing militar real."""
-
+            prompt = PROMPT_BRIEFING.replace("{horas}", str(horas))
             respuesta = cliente_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_BRIEFING},
-                    {"role": "user", "content": f"Fecha actual: {ahora.strftime('%Y-%m-%d %H:%M')} UTC\n\nEventos registrados:\n{contexto}"}
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": f"Fecha: {ahora.strftime('%Y-%m-%d %H:%M')} UTC\n\n{contexto}"}
                 ],
                 max_tokens=2000,
                 temperature=0.2
             )
 
             contenido = respuesta.choices[0].message.content
-            total_eventos = sum(len(e) for e in noticias_por_region.values())
+            total = sum(len(e) for e in noticias_por_region.values())
 
             if len(contenido) <= 4000:
-                embed = discord.Embed(
-                    title=f"🌅 MORNING BRIEFING — {ahora.strftime('%d/%m/%Y')}",
-                    description=contenido,
-                    color=0x0088ff,
-                    timestamp=ahora
-                )
-                embed.set_footer(text=f"VEGA OSINT • {total_eventos} eventos • Últimas {horas}h • {len(noticias_por_region)} regiones activas")
+                embed = discord.Embed(title=f"🌅 MORNING BRIEFING — {ahora.strftime('%d/%m/%Y')}", description=contenido, color=0x0088ff, timestamp=ahora)
+                embed.set_footer(text=f"VEGA OSINT • {total} eventos • Últimas {horas}h")
                 await ctx.respond(embed=embed)
             else:
-                mitad = len(contenido) // 2
-                corte = contenido.rfind("\n\n", 0, mitad)
-                parte1 = contenido[:corte]
-                parte2 = contenido[corte:]
-
-                embed1 = discord.Embed(title=f"🌅 MORNING BRIEFING — {ahora.strftime('%d/%m/%Y')} — Parte 1", description=parte1, color=0x0088ff, timestamp=ahora)
-                embed1.set_footer(text=f"VEGA OSINT • {total_eventos} eventos • Últimas {horas}h")
-                embed2 = discord.Embed(title=f"🌅 MORNING BRIEFING — Parte 2", description=parte2, color=0x0088ff, timestamp=ahora)
-                embed2.set_footer(text="VEGA OSINT • Continúa del mensaje anterior")
+                corte = contenido.rfind("\n\n", 0, len(contenido)//2)
+                embed1 = discord.Embed(title=f"🌅 MORNING BRIEFING — Parte 1", description=contenido[:corte], color=0x0088ff, timestamp=ahora)
+                embed2 = discord.Embed(title=f"🌅 MORNING BRIEFING — Parte 2", description=contenido[corte:], color=0x0088ff, timestamp=ahora)
+                embed1.set_footer(text=f"VEGA OSINT • {total} eventos • Últimas {horas}h")
+                embed2.set_footer(text="VEGA OSINT • Continúa")
                 await ctx.respond(embed=embed1)
                 await ctx.followup.send(embed=embed2)
 
-            admin = self.bot.cogs.get("Admin")
+            admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"🌅 /briefing ejecutado por {ctx.author.display_name} — {total_eventos} eventos")
-
+                admin.registrar(f"🌅 /briefing por {ctx.author.display_name} — {total} eventos")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 

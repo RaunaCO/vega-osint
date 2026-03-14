@@ -44,10 +44,8 @@ class OSINT(commands.Cog):
         embed.add_field(name="✅ PERFILES ENCONTRADOS", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
         embed.add_field(name="❌ NO ENCONTRADOS", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
         embed.set_footer(text="VEGA OSINT • Protocolo de Reconocimiento Digital")
-
         await ctx.respond(embed=embed)
 
-        # Archivar en #osint-hits
         canal_hits = self.bot.get_channel(OSINT_HITS_CHANNEL_ID)
         if canal_hits:
             embed_archivo = discord.Embed(
@@ -60,10 +58,9 @@ class OSINT(commands.Cog):
             embed_archivo.set_footer(text=f"VEGA OSINT • Ejecutado por {ctx.author.display_name}")
             await canal_hits.send(embed=embed_archivo)
 
-        # Registrar en logs
-        admin = self.bot.cogs.get("Admin")
+        admin = self.bot.cogs.get("VegaAdmin")
         if admin:
-            admin.registrar(f"🔍 /userrecon ejecutado: {usuario} — {len(encontrados)} perfiles encontrados")
+            admin.registrar(f"🔍 /userrecon: {usuario} — {len(encontrados)} perfiles encontrados")
 
 def setup(bot):
     bot.add_cog(OSINT(bot))

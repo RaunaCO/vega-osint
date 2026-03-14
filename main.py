@@ -27,11 +27,6 @@ async def on_ready():
     print(f"  Servidores activos: {len(bot.guilds)}")
     print("  Protocolo de inteligencia iniciado.")
     print("=" * 40)
-    try:
-        await bot.sync_commands(force=True)
-        print("  Comandos sincronizados.")
-    except Exception as e:
-        print(f"  Error sincronizando: {e}")
 
 @bot.slash_command(guild_ids=[GUILD_ID], description="Verifica que Vega está operativo")
 async def ping(ctx):

@@ -5,7 +5,7 @@ import aiohttp
 import feedparser
 from deep_translator import GoogleTranslator
 from langdetect import detect, LangDetectException
-from config.settings import FEEDS_NOTICIAS
+from config.settings import FEEDS_NOTICIAS, PALABRAS_CLAVE
 
 VISTOS_PATH = "data/vistos.json"
 
@@ -42,39 +42,31 @@ def extraer_imagen(entrada) -> str:
         for media in entrada.media_content:
             if media.get("type", "").startswith("image"):
                 return media.get("url", "")
-
     if hasattr(entrada, "media_thumbnail") and entrada.media_thumbnail:
         return entrada.media_thumbnail[0].get("url", "")
-
     summary_raw = entrada.get("summary", "")
     match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', summary_raw)
     if match:
         return match.group(1)
-
     return ""
 
 async def buscar_noticias_relevantes(tema: str, max_noticias: int = 8) -> list:
     palabras = re.split(r'[\s\-,]+', tema.lower())
     noticias_encontradas = []
-
     async with aiohttp.ClientSession() as session:
         for fuente, url in FEEDS_NOTICIAS.items():
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     contenido = await resp.text()
                     feed = feedparser.parse(contenido)
-
                     for entrada in feed.entries[:15]:
                         titulo = entrada.get("title", "")
                         resumen = limpiar_html(entrada.get("summary", ""))[:300]
                         link = entrada.get("link", "")
-                        titulo_lower = titulo.lower()
-
-                        if any(p in titulo_lower or p in resumen.lower() for p in palabras):
+                        if any(p in titulo.lower() or p in resumen.lower() for p in palabras):
                             noticias_encontradas.append(
                                 f"[{fuente}] {titulo}\n{resumen}\nFuente: {link}"
                             )
             except Exception as e:
                 print(f"[VEGA] Error en feed {fuente}: {e}")
-
     return noticias_encontradas[:max_noticias]

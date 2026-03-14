@@ -38,7 +38,6 @@ class VegaAdmin(commands.Cog):
         uptime = ahora - self.inicio
         horas, resto = divmod(int(uptime.total_seconds()), 3600)
         minutos, segundos = divmod(resto, 60)
-
         vistos = cargar_vistos()
         intel_cog = self.bot.cogs.get("Intel")
         monitor_activo = intel_cog.monitor.is_running() if intel_cog else False
@@ -57,14 +56,14 @@ class VegaAdmin(commands.Cog):
         embed.add_field(name="📡 Monitor", value=f"```\n{'✅ Activo' if monitor_activo else '⏸️ Pausado'}\n```", inline=True)
         embed.add_field(name="⏰ Intervalo", value=f"```\n{intervalo} min\n```", inline=True)
         embed.add_field(name="🕐 Último escaneo", value=f"```\n{self.ultimo_escaneo}\n```", inline=True)
-        embed.set_footer(text="VEGA OSINT • Actualizado automáticamente cada 10 segundos")
+        embed.set_footer(text="VEGA OSINT • Actualizado cada 10 segundos")
         return embed
 
     def construir_embed_logs(self):
         ahora = datetime.now(timezone.utc)
         eventos = "\n".join(self.log_eventos) if self.log_eventos else "`Sin actividad registrada`"
         embed = discord.Embed(
-            title="📋 VEGA — LOG DE ACTIVIDAD EN TIEMPO REAL",
+            title="📋 VEGA — LOG DE ACTIVIDAD",
             description=eventos,
             color=0x2b2d31,
             timestamp=ahora
@@ -116,8 +115,7 @@ class VegaAdmin(commands.Cog):
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Muestra el estado actual de Vega")
     async def estado(self, ctx):
-        embed = self.construir_embed_status()
-        await ctx.respond(embed=embed)
+        await ctx.respond(embed=self.construir_embed_status())
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Pausa o reanuda el monitor automático")
     async def pausar(self, ctx, accion: discord.Option(str, choices=["pausar", "reanudar"])):
@@ -128,13 +126,13 @@ class VegaAdmin(commands.Cog):
         if accion == "pausar":
             if intel_cog.monitor.is_running():
                 intel_cog.monitor.cancel()
-                await ctx.respond("⏸️ **VEGA** — Monitor automático **pausado**.")
+                await ctx.respond("⏸️ **VEGA** — Monitor **pausado**.")
             else:
                 await ctx.respond("⚠️ **VEGA** — El monitor ya estaba pausado.")
         elif accion == "reanudar":
             if not intel_cog.monitor.is_running():
                 intel_cog.monitor.start()
-                await ctx.respond("▶️ **VEGA** — Monitor automático **reanudado**.")
+                await ctx.respond("▶️ **VEGA** — Monitor **reanudado**.")
             else:
                 await ctx.respond("⚠️ **VEGA** — El monitor ya estaba activo.")
 
@@ -147,7 +145,7 @@ class VegaAdmin(commands.Cog):
             intel_cog.vistos = set()
         embed = discord.Embed(
             title="🗑️ MEMORIA LIMPIADA",
-            description="El historial de noticias vistas ha sido eliminado.\nEl próximo ciclo escaneará todas las fuentes desde cero.",
+            description="El historial fue eliminado. El próximo ciclo escaneará desde cero.",
             color=0xff8800,
             timestamp=datetime.now(timezone.utc)
         )
@@ -155,7 +153,7 @@ class VegaAdmin(commands.Cog):
         await ctx.respond(embed=embed)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Cambia el intervalo del monitor sin reiniciar")
-    async def intervalo(self, ctx, minutos: discord.Option(int, description="Minutos entre cada ciclo (mínimo 2)")):
+    async def intervalo(self, ctx, minutos: discord.Option(int, description="Minutos entre ciclos (mínimo 2)")):
         if minutos < 2:
             await ctx.respond("⚠️ **VEGA** — El intervalo mínimo es 2 minutos.")
             return
@@ -166,7 +164,7 @@ class VegaAdmin(commands.Cog):
         intel_cog.monitor.change_interval(minutes=minutos)
         embed = discord.Embed(
             title="⏰ INTERVALO ACTUALIZADO",
-            description=f"El monitor ahora escaneará cada **{minutos} minutos**.\nNo es necesario reiniciar Vega.",
+            description=f"El monitor escaneará cada **{minutos} minutos**.",
             color=0x00ff41,
             timestamp=datetime.now(timezone.utc)
         )
@@ -177,19 +175,15 @@ class VegaAdmin(commands.Cog):
     async def purgar(self, ctx, canal: discord.Option(discord.TextChannel, description="Canal a limpiar")):
         await ctx.defer()
         canales_protegidos = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID]
-
         if canal.id in canales_protegidos:
-            await ctx.respond("⚠️ **VEGA** — Ese canal está protegido y no puede ser purgado.")
+            await ctx.respond("⚠️ **VEGA** — Ese canal está protegido.")
             return
-
         try:
             borrados = await canal.purge(limit=500)
-
             if canal.id == CONFLICT_CHANNEL_ID:
                 intel_cog = self.bot.cogs.get("Intel")
                 if intel_cog:
                     intel_cog.mensaje_ciclo = None
-
             embed = discord.Embed(
                 title="🗑️ PURGA COMPLETADA",
                 description=f"Se eliminaron **{len(borrados)} mensajes** de {canal.mention}.",
@@ -198,8 +192,7 @@ class VegaAdmin(commands.Cog):
             )
             embed.set_footer(text="VEGA OSINT • Operación completada")
             await ctx.respond(embed=embed)
-            self.registrar(f"🗑️ Purga en {canal.name} — {len(borrados)} mensajes eliminados")
-
+            self.registrar(f"🗑️ Purga en {canal.name} — {len(borrados)} mensajes")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
