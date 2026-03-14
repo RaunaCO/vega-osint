@@ -254,6 +254,7 @@ class Intel(commands.Cog):
     @monitor.before_loop
     async def before_monitor(self):
         await self.bot.wait_until_ready()
+        await asyncio.sleep(30)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Escanea todas las fuentes ahora mismo")
     async def scanfeed(self, ctx):
