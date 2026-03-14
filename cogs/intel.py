@@ -170,7 +170,7 @@ class Intel(commands.Cog):
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                         feed = feedparser.parse(await resp.text())
-                        for entrada in feed.entries[:5]:
+                        for entrada in feed.entries[:2]:
                             titulo = entrada.get("title", "")
                             link = entrada.get("link", "")
                             resumen = limpiar_html(entrada.get("summary", ""))[:400]
@@ -217,7 +217,7 @@ class Intel(commands.Cog):
             await self.enviar_embed_individual(noticia, clasificacion)
             if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
                 await self.enviar_alerta_critica(noticia, clasificacion)
-            await asyncio.sleep(2)
+            await asyncio.sleep(4)
 
         contexto = "\n".join([
             f"{i}. {n['titulo']} | {n['fuente']} | {n.get('clasificacion', {}).get('region', 'Global')} | {n.get('clasificacion', {}).get('nivel', 'MEDIO')} | {n['resumen'][:200]}"
