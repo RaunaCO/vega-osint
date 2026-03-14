@@ -1,0 +1,24 @@
+{
+  "modules": {
+    "intel": {
+      "enabled": true,
+      "description": "Monitor de noticias y conflictos en tiempo real",
+      "cog": "cogs.intel"
+    },
+    "ai_brain": {
+      "enabled": true,
+      "description": "Cerebro de IA — SITREPs, análisis y briefings",
+      "cog": "cogs.ai_brain"
+    },
+    "osint": {
+      "enabled": true,
+      "description": "Herramientas OSINT — reconocimiento de usuarios",
+      "cog": "cogs.osint"
+    },
+    "admin": {
+      "enabled": true,
+      "description": "Panel de administración y monitoreo del sistema",
+      "cog": "cogs.admin"
+    }
+  }
+}
