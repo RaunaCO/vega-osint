@@ -7,7 +7,7 @@ import os
 
 VISTOS_PATH = "data/vistos.json"
 
-class VegaAdmin(commands.Cog, name="Admin"):
+class VegaAdmin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.inicio = datetime.now(timezone.utc)
