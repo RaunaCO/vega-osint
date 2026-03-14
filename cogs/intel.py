@@ -12,6 +12,7 @@ from config.settings import (
     GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASIFICAR, PROMPT_CICLO, PROMPT_ALERTA
 )
 from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_y_traducir, extraer_imagen
+from utils.database import guardar_articulo
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
 
@@ -225,6 +226,8 @@ class Intel(commands.Cog):
             clasificacion = await self.clasificar_noticia(noticia["titulo"], noticia["resumen"], noticia["fuente"])
             noticia["clasificacion"] = clasificacion
             await self.enviar_embed_individual(noticia, clasificacion)
+
+            guardar_articulo({**noticia, **clasificacion})
 
             if admin:
                 admin.registrar_noticia({

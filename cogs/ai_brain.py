@@ -8,6 +8,7 @@ from config.settings import (
     CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CANALES
 )
 from utils.helpers import buscar_noticias_relevantes
+from utils.database import guardar_sitrep
 
 cliente_groq = Groq(api_key=GROQ_API_KEY)
 
@@ -16,6 +17,7 @@ class AIBrain(commands.Cog):
         self.bot = bot
 
     async def archivar_sitrep(self, tema: str, contenido: str, fuentes: int, autor: str):
+        guardar_sitrep(tema, contenido, fuentes, autor)
         canal = self.bot.get_channel(MISSION_LOGS_CHANNEL_ID)
         if not canal:
             return
@@ -64,7 +66,7 @@ class AIBrain(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_SISTEMA},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnaliza este texto desde perspectiva de inteligencia geopolítica:\n\n{texto}"}
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnaliza este texto:\n\n{texto}"}
                 ],
                 max_tokens=800,
                 temperature=0.2
@@ -103,7 +105,7 @@ class AIBrain(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_SISTEMA},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenera un resumen ejecutivo de estas noticias:\n\n" + "\n\n".join(mensajes)}
+                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nResumen ejecutivo:\n\n" + "\n\n".join(mensajes)}
                 ],
                 max_tokens=800,
                 temperature=0.2

@@ -5,7 +5,7 @@ import aiohttp
 import feedparser
 from deep_translator import GoogleTranslator
 from langdetect import detect, LangDetectException
-from config.settings import FEEDS_NOTICIAS, PALABRAS_CLAVE
+from config.settings import FEEDS_NOTICIAS
 
 VISTOS_PATH = "data/vistos.json"
 
@@ -28,10 +28,14 @@ def detectar_y_traducir(texto: str):
         return texto, False
 
 def cargar_vistos() -> set:
-    if os.path.exists(VISTOS_PATH):
-        with open(VISTOS_PATH, "r") as f:
-            return set(json.load(f))
-    return set()
+    try:
+        from utils.database import obtener_todos_los_links
+        return obtener_todos_los_links()
+    except Exception:
+        if os.path.exists(VISTOS_PATH):
+            with open(VISTOS_PATH, "r") as f:
+                return set(json.load(f))
+        return set()
 
 def guardar_vistos(vistos: set):
     with open(VISTOS_PATH, "w") as f:

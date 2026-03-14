@@ -2,12 +2,16 @@ import discord
 import os
 import asyncio
 from dotenv import load_dotenv
+from utils.database import inicializar_db
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 GUILD_ID = int(os.getenv("GUILD_ID"))
 
 asyncio.set_event_loop(asyncio.new_event_loop())
+
+# Inicializar base de datos al arrancar
+inicializar_db()
 
 intents = discord.Intents.default()
 intents.message_content = True
