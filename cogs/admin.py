@@ -1,13 +1,13 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
-from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID
+from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID
 from utils.helpers import cargar_vistos
 import os
 
 VISTOS_PATH = "data/vistos.json"
 
-class Admin(commands.Cog):
+class VegaAdmin(commands.Cog, name="Admin"):
     def __init__(self, bot):
         self.bot = bot
         self.inicio = datetime.now(timezone.utc)
@@ -120,7 +120,7 @@ class Admin(commands.Cog):
         await ctx.respond(embed=embed)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Pausa o reanuda el monitor automático")
-    async def monitor(self, ctx, accion: discord.Option(str, choices=["pausar", "reanudar"])):
+    async def pausar(self, ctx, accion: discord.Option(str, choices=["pausar", "reanudar"])):
         intel_cog = self.bot.cogs.get("Intel")
         if not intel_cog:
             await ctx.respond("⚠️ **VEGA** — Módulo Intel no encontrado.")
@@ -173,5 +173,35 @@ class Admin(commands.Cog):
         embed.set_footer(text="VEGA OSINT • Configuración actualizada")
         await ctx.respond(embed=embed)
 
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Purga todos los mensajes de un canal")
+    async def purgar(self, ctx, canal: discord.Option(discord.TextChannel, description="Canal a limpiar")):
+        await ctx.defer()
+        canales_protegidos = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID]
+
+        if canal.id in canales_protegidos:
+            await ctx.respond("⚠️ **VEGA** — Ese canal está protegido y no puede ser purgado.")
+            return
+
+        try:
+            borrados = await canal.purge(limit=500)
+
+            if canal.id == CONFLICT_CHANNEL_ID:
+                intel_cog = self.bot.cogs.get("Intel")
+                if intel_cog:
+                    intel_cog.mensaje_ciclo = None
+
+            embed = discord.Embed(
+                title="🗑️ PURGA COMPLETADA",
+                description=f"Se eliminaron **{len(borrados)} mensajes** de {canal.mention}.",
+                color=0xff8800,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text="VEGA OSINT • Operación completada")
+            await ctx.respond(embed=embed)
+            self.registrar(f"🗑️ Purga en {canal.name} — {len(borrados)} mensajes eliminados")
+
+        except Exception as e:
+            await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+
 def setup(bot):
-    bot.add_cog(Admin(bot))
+    bot.add_cog(VegaAdmin(bot))
