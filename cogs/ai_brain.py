@@ -4,183 +4,184 @@ from groq import Groq
 from datetime import datetime, timezone, timedelta
 from config.settings import (
     GUILD_ID, GROQ_API_KEY, GROQ_MODEL,
-    PROMPT_SITREP, PROMPT_SISTEMA, PROMPT_BRIEFING,
-    CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CANALES
+    PROMPT_SITREP, PROMPT_SYSTEM, PROMPT_BRIEFING,
+    CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CHANNELS
 )
-from utils.helpers import buscar_noticias_relevantes
-from utils.database import guardar_sitrep
+from utils.helpers import search_relevant_news
+from utils.database import save_sitrep
 
-cliente_groq = Groq(api_key=GROQ_API_KEY)
+client_groq = Groq(api_key=GROQ_API_KEY)
 
 class AIBrain(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def archivar_sitrep(self, tema: str, contenido: str, fuentes: int, autor: str):
-        guardar_sitrep(tema, contenido, fuentes, autor)
-        canal = self.bot.get_channel(MISSION_LOGS_CHANNEL_ID)
-        if not canal:
+    async def archive_sitrep(self, topic: str, content: str, sources: int, author: str):
+        """Save SITREP to database and post to #mission-logs."""
+        save_sitrep(topic, content, sources, author)
+        channel = self.bot.get_channel(MISSION_LOGS_CHANNEL_ID)
+        if not channel:
             return
         embed = discord.Embed(
-            title=f"📋 SITREP — {tema.upper()}",
-            description=contenido[:4000],
+            title=f"📋 SITREP ARCHIVED — {topic.upper()}",
+            description=content[:4000],
             color=0x2b2d31,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_footer(text=f"VEGA OSINT • {fuentes} fuentes • Por {autor}")
-        await canal.send(embed=embed)
+        embed.set_footer(text=f"VEGA OSINT • {sources} sources • By {author}")
+        await channel.send(embed=embed)
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Genera un SITREP basado en noticias reales")
-    async def sitrep(self, ctx, tema: str):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Generate a SITREP based on real-time news")
+    async def sitrep(self, ctx, topic: str):
         await ctx.defer()
         try:
-            noticias = await buscar_noticias_relevantes(tema)
-            contexto = "NOTICIAS REALES:\n\n" + "\n\n---\n\n".join(noticias) if noticias else f"Sin noticias recientes sobre '{tema}'. Usa contexto histórico marcando [CONTEXTO HISTÓRICO]."
+            news = await search_relevant_news(topic)
+            context = "REAL NEWS:\n\n" + "\n\n---\n\n".join(news) if news else f"No recent news on '{topic}'. Use historical context marking [HISTORICAL CONTEXT]."
 
-            respuesta = cliente_groq.chat.completions.create(
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_SITREP},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\nTema: {tema}\n\n{contexto}"}
+                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\nTopic: {topic}\n\n{context}"}
                 ],
                 max_tokens=1024,
                 temperature=0.2
             )
-            contenido = respuesta.choices[0].message.content[:4000]
-            embed = discord.Embed(title=f"📋 SITREP — {tema.upper()}", description=contenido, color=0x00ff41, timestamp=datetime.now(timezone.utc))
-            embed.set_footer(text=f"VEGA OSINT • {len(noticias)} fuentes analizadas")
+            content = response.choices[0].message.content[:4000]
+            embed = discord.Embed(title=f"📋 SITREP — {topic.upper()}", description=content, color=0x00ff41, timestamp=datetime.now(timezone.utc))
+            embed.set_footer(text=f"VEGA OSINT • {len(news)} sources analyzed")
             await ctx.respond(embed=embed)
-            await self.archivar_sitrep(tema, contenido, len(noticias), ctx.author.display_name)
+            await self.archive_sitrep(topic, content, len(news), ctx.author.display_name)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"📋 /sitrep: {tema[:40]} — {len(noticias)} fuentes")
+                admin.log(f"📋 /sitrep: {topic[:40]} — {len(news)} sources")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Analiza un texto con IA")
-    async def analizar(self, ctx, texto: str):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Analyze any text with AI")
+    async def analyze(self, ctx, text: str):
         await ctx.defer()
         try:
-            respuesta = cliente_groq.chat.completions.create(
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_SISTEMA},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnaliza este texto:\n\n{texto}"}
+                    {"role": "system", "content": PROMPT_SYSTEM},
+                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nAnalyze this text from a geopolitical intelligence perspective:\n\n{text}"}
                 ],
                 max_tokens=800,
                 temperature=0.2
             )
-            embed = discord.Embed(title="🧠 ANÁLISIS DE INTELIGENCIA", description=respuesta.choices[0].message.content, color=0x7700ff, timestamp=datetime.now(timezone.utc))
-            embed.set_footer(text="VEGA OSINT • Verificar fuentes primarias")
+            embed = discord.Embed(title="🧠 INTELLIGENCE ANALYSIS", description=response.choices[0].message.content, color=0x7700ff, timestamp=datetime.now(timezone.utc))
+            embed.set_footer(text="VEGA OSINT • Verify with primary sources")
             await ctx.respond(embed=embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"🧠 /analizar por {ctx.author.display_name}")
+                admin.log(f"🧠 /analyze by {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Resume las últimas noticias del canal")
-    async def resumen(self, ctx, cantidad: int = 10):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Summarize latest news from the intelligence channel")
+    async def summary(self, ctx, count: int = 10):
         await ctx.defer()
         try:
-            canal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
-            if not canal:
-                await ctx.respond("⚠️ **VEGA** — Canal no encontrado.")
+            channel = self.bot.get_channel(CONFLICT_CHANNEL_ID)
+            if not channel:
+                await ctx.respond("⚠️ **VEGA** — Channel not found.")
                 return
 
-            mensajes = []
-            async for mensaje in canal.history(limit=cantidad):
-                if mensaje.author == self.bot.user and mensaje.embeds:
-                    embed = mensaje.embeds[0]
-                    mensajes.append(f"• {embed.title or ''}\n{(embed.description or '')[:200]}")
+            messages = []
+            async for message in channel.history(limit=count):
+                if message.author == self.bot.user and message.embeds:
+                    embed = message.embeds[0]
+                    messages.append(f"• {embed.title or ''}\n{(embed.description or '')[:200]}")
 
-            if not mensajes:
-                await ctx.respond("⚠️ **VEGA** — No hay noticias recientes.")
+            if not messages:
+                await ctx.respond("⚠️ **VEGA** — No recent news found.")
                 return
 
-            mensajes.reverse()
-            respuesta = cliente_groq.chat.completions.create(
+            messages.reverse()
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_SISTEMA},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nResumen ejecutivo:\n\n" + "\n\n".join(mensajes)}
+                    {"role": "system", "content": PROMPT_SYSTEM},
+                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenerate an executive summary of these recent news items:\n\n" + "\n\n".join(messages)}
                 ],
                 max_tokens=800,
                 temperature=0.2
             )
-            embed = discord.Embed(title=f"📊 RESUMEN — Últimas {len(mensajes)} noticias", description=respuesta.choices[0].message.content, color=0x0088ff, timestamp=datetime.now(timezone.utc))
-            embed.set_footer(text=f"VEGA OSINT • {len(mensajes)} entradas")
+            embed = discord.Embed(title=f"📊 SUMMARY — Last {len(messages)} articles", description=response.choices[0].message.content, color=0x0088ff, timestamp=datetime.now(timezone.utc))
+            embed.set_footer(text=f"VEGA OSINT • {len(messages)} entries")
             await ctx.respond(embed=embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"📊 /resumen por {ctx.author.display_name}")
+                admin.log(f"📊 /summary by {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Briefing de las últimas horas por región")
-    async def briefing(self, ctx, horas: discord.Option(int, description="Horas hacia atrás (default: 8)", default=8)):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Intelligence briefing for the last N hours by region")
+    async def briefing(self, ctx, hours: discord.Option(int, description="Hours to look back (default: 8)", default=8)):
         await ctx.defer()
         try:
-            ahora = datetime.now(timezone.utc)
-            limite = ahora - timedelta(hours=horas)
-            noticias_por_region = {}
+            now = datetime.now(timezone.utc)
+            since = now - timedelta(hours=hours)
+            news_by_region = {}
 
-            for region, canal_id in REGION_CANALES.items():
-                canal = self.bot.get_channel(canal_id)
-                if not canal:
+            for region, channel_id in REGION_CHANNELS.items():
+                channel = self.bot.get_channel(channel_id)
+                if not channel:
                     continue
-                entradas = []
-                async for mensaje in canal.history(limit=100, after=limite):
-                    if mensaje.author == self.bot.user and mensaje.embeds:
-                        embed = mensaje.embeds[0]
-                        nivel = next((f.value for f in embed.fields if "Nivel" in f.name), "MEDIO")
-                        ubicacion = next((f.value for f in embed.fields if "Ubicación" in f.name), "N/A")
-                        hora_msg = mensaje.created_at.strftime("%H:%M UTC")
-                        entradas.append(f"[{hora_msg}] [{nivel}] {embed.title} — 📍{ubicacion}")
-                if entradas:
-                    noticias_por_region[region] = entradas
+                entries = []
+                async for message in channel.history(limit=100, after=since):
+                    if message.author == self.bot.user and message.embeds:
+                        embed = message.embeds[0]
+                        level = next((f.value for f in embed.fields if "Level" in f.name), "MEDIUM")
+                        location = next((f.value for f in embed.fields if "Location" in f.name), "N/A")
+                        time_str = message.created_at.strftime("%H:%M UTC")
+                        entries.append(f"[{time_str}] [{level}] {embed.title} — 📍{location}")
+                if entries:
+                    news_by_region[region] = entries
 
-            if not noticias_por_region:
-                await ctx.respond(f"⚠️ **VEGA** — Sin actividad en las últimas {horas} horas.")
+            if not news_by_region:
+                await ctx.respond(f"⚠️ **VEGA** — No activity recorded in the last {hours} hours.")
                 return
 
-            contexto = ""
-            for region, entradas in noticias_por_region.items():
-                contexto += f"\n## {region}\n" + "\n".join(entradas)
+            context = ""
+            for region, entries in news_by_region.items():
+                context += f"\n## {region}\n" + "\n".join(entries)
 
-            prompt = PROMPT_BRIEFING.replace("{horas}", str(horas))
-            respuesta = cliente_groq.chat.completions.create(
+            prompt = PROMPT_BRIEFING.replace("{hours}", str(hours))
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": f"Fecha: {ahora.strftime('%Y-%m-%d %H:%M')} UTC\n\n{contexto}"}
+                    {"role": "user", "content": f"Date: {now.strftime('%Y-%m-%d %H:%M')} UTC\n\n{context}"}
                 ],
                 max_tokens=2000,
                 temperature=0.2
             )
 
-            contenido = respuesta.choices[0].message.content
-            total = sum(len(e) for e in noticias_por_region.values())
+            content = response.choices[0].message.content
+            total = sum(len(e) for e in news_by_region.values())
 
-            if len(contenido) <= 4000:
-                embed = discord.Embed(title=f"🌅 MORNING BRIEFING — {ahora.strftime('%d/%m/%Y')}", description=contenido, color=0x0088ff, timestamp=ahora)
-                embed.set_footer(text=f"VEGA OSINT • {total} eventos • Últimas {horas}h")
+            if len(content) <= 4000:
+                embed = discord.Embed(title=f"🌅 INTELLIGENCE BRIEFING — {now.strftime('%m/%d/%Y')}", description=content, color=0x0088ff, timestamp=now)
+                embed.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h")
                 await ctx.respond(embed=embed)
             else:
-                corte = contenido.rfind("\n\n", 0, len(contenido)//2)
-                embed1 = discord.Embed(title=f"🌅 MORNING BRIEFING — Parte 1", description=contenido[:corte], color=0x0088ff, timestamp=ahora)
-                embed2 = discord.Embed(title=f"🌅 MORNING BRIEFING — Parte 2", description=contenido[corte:], color=0x0088ff, timestamp=ahora)
-                embed1.set_footer(text=f"VEGA OSINT • {total} eventos • Últimas {horas}h")
-                embed2.set_footer(text="VEGA OSINT • Continúa")
+                cut = content.rfind("\n\n", 0, len(content)//2)
+                embed1 = discord.Embed(title="🌅 INTELLIGENCE BRIEFING — Part 1", description=content[:cut], color=0x0088ff, timestamp=now)
+                embed2 = discord.Embed(title="🌅 INTELLIGENCE BRIEFING — Part 2", description=content[cut:], color=0x0088ff, timestamp=now)
+                embed1.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h")
+                embed2.set_footer(text="VEGA OSINT • Continued")
                 await ctx.respond(embed=embed1)
                 await ctx.followup.send(embed=embed2)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
-                admin.registrar(f"🌅 /briefing por {ctx.author.display_name} — {total} eventos")
+                admin.log(f"🌅 /briefing by {ctx.author.display_name} — {total} events")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
 

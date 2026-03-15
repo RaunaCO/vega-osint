@@ -2,293 +2,309 @@ import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
 from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID
-from utils.helpers import cargar_vistos
+from utils.helpers import load_seen
 import os
+import json
 
-VISTOS_PATH = "data/vistos.json"
+SEEN_PATH = "data/seen.json"
 
 class VegaAdmin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.inicio = datetime.now(timezone.utc)
-        self.ciclos_completados = 0
-        self.ultimo_escaneo = "Nunca"
-        self.mensaje_status = None
-        self.mensaje_logs = None
-        self.mensaje_command_center = None
-        self.log_eventos = []
-        self.ultimas_noticias = []
-        self.actualizar_status.start()
-        self.actualizar_logs.start()
-        self.actualizar_command_center.start()
+        self.start_time = datetime.now(timezone.utc)
+        self.cycles_completed = 0
+        self.last_scan = "Never"
+        self.status_message = None
+        self.logs_message = None
+        self.command_center_message = None
+        self.log_events = []
+        self.recent_articles = []
+        self.update_status.start()
+        self.update_logs.start()
+        self.update_command_center.start()
 
     def cog_unload(self):
-        self.actualizar_status.cancel()
-        self.actualizar_logs.cancel()
-        self.actualizar_command_center.cancel()
+        self.update_status.cancel()
+        self.update_logs.cancel()
+        self.update_command_center.cancel()
 
-    def incrementar_ciclo(self):
-        self.ciclos_completados += 1
-        self.ultimo_escaneo = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    def increment_cycle(self):
+        """Increment the cycle counter and update last scan time."""
+        self.cycles_completed += 1
+        self.last_scan = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    def registrar(self, evento: str):
-        hora = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        self.log_eventos.append(f"`{hora}` {evento}")
-        if len(self.log_eventos) > 20:
-            self.log_eventos.pop(0)
+    def log(self, event: str):
+        """Add an event to the live log."""
+        time = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        self.log_events.append(f"`{time}` {event}")
+        if len(self.log_events) > 20:
+            self.log_events.pop(0)
 
-    def registrar_noticia(self, noticia: dict):
-        self.ultimas_noticias.insert(0, noticia)
-        if len(self.ultimas_noticias) > 8:
-            self.ultimas_noticias.pop()
+    def log_article(self, article: dict):
+        """Register a new article for the command center display."""
+        self.recent_articles.insert(0, article)
+        if len(self.recent_articles) > 8:
+            self.recent_articles.pop()
 
-    def construir_embed_status(self):
-        ahora = datetime.now(timezone.utc)
-        uptime = ahora - self.inicio
-        horas, resto = divmod(int(uptime.total_seconds()), 3600)
-        minutos, segundos = divmod(resto, 60)
-        vistos = cargar_vistos()
+    def build_status_embed(self):
+        """Build the live status panel embed."""
+        now = datetime.now(timezone.utc)
+        uptime = now - self.start_time
+        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        seen = load_seen()
         intel_cog = self.bot.cogs.get("Intel")
-        monitor_activo = intel_cog.monitor.is_running() if intel_cog else False
-        intervalo = intel_cog.monitor.minutes if intel_cog else "N/A"
+        monitor_active = intel_cog.monitor.is_running() if intel_cog else False
+        interval = intel_cog.monitor.minutes if intel_cog else "N/A"
 
         embed = discord.Embed(
-            title="⚡ VEGA OSINT — PANEL DE ESTADO",
-            description="```\nPROTOCOLO DE INTELIGENCIA SINTÉTICA ACTIVO\n```",
-            color=0x00ff41 if monitor_activo else 0xff8800,
-            timestamp=ahora
+            title="⚡ VEGA OSINT — SYSTEM STATUS",
+            description="```\nSYNTHETIC INTELLIGENCE PROTOCOL ACTIVE\n```",
+            color=0x00ff41 if monitor_active else 0xff8800,
+            timestamp=now
         )
-        embed.add_field(name="🤖 Sistema", value=f"```\n{'OPERATIVO' if monitor_activo else 'MONITOR PAUSADO'}\n```", inline=False)
-        embed.add_field(name="⏱️ Uptime", value=f"```\n{horas}h {minutos}m {segundos}s\n```", inline=True)
-        embed.add_field(name="🔄 Ciclos", value=f"```\n{self.ciclos_completados}\n```", inline=True)
-        embed.add_field(name="📰 En memoria", value=f"```\n{len(vistos)} noticias\n```", inline=True)
-        embed.add_field(name="📡 Monitor", value=f"```\n{'✅ Activo' if monitor_activo else '⏸️ Pausado'}\n```", inline=True)
-        embed.add_field(name="⏰ Intervalo", value=f"```\n{intervalo} min\n```", inline=True)
-        embed.add_field(name="🕐 Último escaneo", value=f"```\n{self.ultimo_escaneo}\n```", inline=True)
-        embed.set_footer(text="VEGA OSINT • Actualizado cada 10 segundos")
+        embed.add_field(name="🤖 System", value=f"```\n{'OPERATIONAL' if monitor_active else 'MONITOR PAUSED'}\n```", inline=False)
+        embed.add_field(name="⏱️ Uptime", value=f"```\n{hours}h {minutes}m {seconds}s\n```", inline=True)
+        embed.add_field(name="🔄 Cycles", value=f"```\n{self.cycles_completed}\n```", inline=True)
+        embed.add_field(name="📰 In memory", value=f"```\n{len(seen)} articles\n```", inline=True)
+        embed.add_field(name="📡 Monitor", value=f"```\n{'✅ Active' if monitor_active else '⏸️ Paused'}\n```", inline=True)
+        embed.add_field(name="⏰ Interval", value=f"```\n{interval} min\n```", inline=True)
+        embed.add_field(name="🕐 Last scan", value=f"```\n{self.last_scan}\n```", inline=True)
+        embed.set_footer(text="VEGA OSINT • Auto-updated every 10 seconds")
         return embed
 
-    def construir_embed_logs(self):
-        ahora = datetime.now(timezone.utc)
-        eventos = "\n".join(self.log_eventos) if self.log_eventos else "`Sin actividad registrada`"
+    def build_logs_embed(self):
+        """Build the live activity log embed."""
+        now = datetime.now(timezone.utc)
+        events = "\n".join(self.log_events) if self.log_events else "`No activity recorded`"
         embed = discord.Embed(
-            title="📋 VEGA — LOG DE ACTIVIDAD",
-            description=eventos,
+            title="📋 VEGA — LIVE ACTIVITY LOG",
+            description=events,
             color=0x2b2d31,
-            timestamp=ahora
+            timestamp=now
         )
-        embed.set_footer(text="VEGA OSINT • Últimos 20 eventos — Actualizado cada 10 segundos")
+        embed.set_footer(text="VEGA OSINT • Last 20 events — Updated every 10 seconds")
         return embed
 
-    def construir_embed_command_center(self):
-        ahora = datetime.now(timezone.utc)
+    def build_command_center_embed(self):
+        """Build the live global situation command center embed."""
+        now = datetime.now(timezone.utc)
 
-        # Regiones activas de las últimas noticias
-        regiones_activas = {}
-        for n in self.ultimas_noticias:
-            region = n.get("region", "Global")
-            nivel = n.get("nivel", "MEDIO")
-            if region not in regiones_activas or nivel == "CRÍTICO":
-                regiones_activas[region] = nivel
+        active_regions = {}
+        for a in self.recent_articles:
+            region = a.get("region", "Global")
+            level = a.get("level", "MEDIUM")
+            if region not in active_regions or level == "CRITICAL":
+                active_regions[region] = level
 
-        niveles_emoji = {"CRÍTICO": "🔴", "ALTO": "🟠", "MEDIO": "🟡", "BAJO": "🟢"}
+        level_emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
 
-        # Estado global
-        nivel_global = "CRÍTICO" if "CRÍTICO" in regiones_activas.values() else \
-                       "ALTO" if "ALTO" in regiones_activas.values() else \
-                       "MEDIO" if regiones_activas else "BAJO"
+        global_level = "CRITICAL" if "CRITICAL" in active_regions.values() else \
+                       "HIGH" if "HIGH" in active_regions.values() else \
+                       "MEDIUM" if active_regions else "LOW"
 
         embed = discord.Embed(
-            title="🌍 VEGA — SITUACIÓN GLOBAL EN VIVO",
-            description=f"```\nNIVEL GLOBAL: {nivel_global}\n```",
-            color={"CRÍTICO": 0xff0000, "ALTO": 0xff6600, "MEDIO": 0xffaa00, "BAJO": 0x00ff41}.get(nivel_global, 0x0088ff),
-            timestamp=ahora
+            title="🌍 VEGA — GLOBAL SITUATION LIVE",
+            description=f"```\nGLOBAL LEVEL: {global_level}\n```",
+            color={"CRITICAL": 0xff0000, "HIGH": 0xff6600, "MEDIUM": 0xffaa00, "LOW": 0x00ff41}.get(global_level, 0x0088ff),
+            timestamp=now
         )
 
-        # Regiones activas
-        if regiones_activas:
-            regiones_texto = "\n".join([
-                f"{niveles_emoji.get(nivel, '🟡')} **{region}** — {nivel}"
-                for region, nivel in regiones_activas.items()
-            ])
-        else:
-            regiones_texto = "*Sin actividad reciente*"
+        regions_text = "\n".join([
+            f"{level_emoji.get(level, '🟡')} **{region}** — {level}"
+            for region, level in active_regions.items()
+        ]) if active_regions else "*No recent activity*"
 
-        embed.add_field(name="📡 REGIONES ACTIVAS", value=regiones_texto, inline=False)
+        embed.add_field(name="📡 ACTIVE REGIONS", value=regions_text, inline=False)
 
-        # Últimas noticias
-        if self.ultimas_noticias:
-            noticias_texto = "\n".join([
-                f"{niveles_emoji.get(n.get('nivel', 'MEDIO'), '🟡')} [{n.get('hora', '')}] {n.get('titulo', '')[:60]}..."
-                for n in self.ultimas_noticias[:5]
-            ])
-        else:
-            noticias_texto = "*Esperando primer ciclo de inteligencia...*"
+        articles_text = "\n".join([
+            f"{level_emoji.get(a.get('level', 'MEDIUM'), '🟡')} [{a.get('time', '')}] {a.get('title', '')[:60]}..."
+            for a in self.recent_articles[:5]
+        ]) if self.recent_articles else "*Waiting for first intelligence cycle...*"
 
-        embed.add_field(name="📰 ÚLTIMAS ENTRADAS", value=noticias_texto, inline=False)
+        embed.add_field(name="📰 LATEST ENTRIES", value=articles_text, inline=False)
 
-        # Comandos disponibles
-        comandos = (
-            "`/scanfeed` — Escanear fuentes ahora\n"
-            "`/sitrep` — Generar informe de situación\n"
-            "`/briefing` — Resumen de las últimas horas\n"
-            "`/analizar` — Analizar texto con IA\n"
-            "`/resumen` — Resumir canal de noticias\n"
-            "`/userrecon` — Reconocimiento de usuario\n"
-            "`/purgar` — Limpiar canal\n"
-            "`/limpiar` — Resetear memoria\n"
-            "`/pausar` — Pausar/reanudar monitor\n"
-            "`/intervalo` — Cambiar frecuencia"
+        commands_text = (
+            "`/scanfeed` — Scan sources now\n"
+            "`/sitrep [topic]` — Generate situation report\n"
+            "`/briefing [hours]` — Regional intelligence briefing\n"
+            "`/analyze [text]` — AI text analysis\n"
+            "`/summary [count]` — Summarize news channel\n"
+            "`/userrecon [user]` — Username reconnaissance\n"
+            "`/purge [channel]` — Clear channel messages\n"
+            "`/clear` — Reset article memory\n"
+            "`/pause [action]` — Pause/resume monitor\n"
+            "`/interval [minutes]` — Change scan frequency"
         )
-        embed.add_field(name="⚙️ COMANDOS DISPONIBLES", value=comandos, inline=False)
-        embed.set_footer(text="VEGA OSINT • Actualizado cada 30 segundos")
+        embed.add_field(name="⚙️ AVAILABLE COMMANDS", value=commands_text, inline=False)
+        embed.set_footer(text="VEGA OSINT • Updated every 30 seconds")
         return embed
 
     @tasks.loop(seconds=10)
-    async def actualizar_status(self):
-        canal = self.bot.get_channel(STATUS_CHANNEL_ID)
-        if not canal:
+    async def update_status(self):
+        channel = self.bot.get_channel(STATUS_CHANNEL_ID)
+        if not channel:
             return
-        embed = self.construir_embed_status()
+        embed = self.build_status_embed()
         try:
-            if self.mensaje_status:
-                await self.mensaje_status.edit(embed=embed)
+            if self.status_message:
+                await self.status_message.edit(embed=embed)
             else:
-                await canal.purge(limit=10)
-                self.mensaje_status = await canal.send(embed=embed)
+                await channel.purge(limit=10)
+                self.status_message = await channel.send(embed=embed)
         except discord.NotFound:
-            self.mensaje_status = await canal.send(embed=embed)
+            self.status_message = await channel.send(embed=embed)
         except Exception as e:
-            print(f"[VEGA] Error actualizando status: {e}")
+            print(f"[VEGA] Status update error: {e}")
 
     @tasks.loop(seconds=10)
-    async def actualizar_logs(self):
-        canal = self.bot.get_channel(LOGS_CHANNEL_ID)
-        if not canal:
+    async def update_logs(self):
+        channel = self.bot.get_channel(LOGS_CHANNEL_ID)
+        if not channel:
             return
-        embed = self.construir_embed_logs()
+        embed = self.build_logs_embed()
         try:
-            if self.mensaje_logs:
-                await self.mensaje_logs.edit(embed=embed)
+            if self.logs_message:
+                await self.logs_message.edit(embed=embed)
             else:
-                await canal.purge(limit=10)
-                self.mensaje_logs = await canal.send(embed=embed)
+                await channel.purge(limit=10)
+                self.logs_message = await channel.send(embed=embed)
         except discord.NotFound:
-            self.mensaje_logs = await canal.send(embed=embed)
+            self.logs_message = await channel.send(embed=embed)
         except Exception as e:
-            print(f"[VEGA] Error actualizando logs: {e}")
+            print(f"[VEGA] Logs update error: {e}")
 
     @tasks.loop(seconds=30)
-    async def actualizar_command_center(self):
-        canal = self.bot.get_channel(COMMAND_CENTER_ID)
-        if not canal:
+    async def update_command_center(self):
+        channel = self.bot.get_channel(COMMAND_CENTER_ID)
+        if not channel:
             return
-        embed = self.construir_embed_command_center()
+        embed = self.build_command_center_embed()
         try:
-            if self.mensaje_command_center:
-                await self.mensaje_command_center.edit(embed=embed)
+            if self.command_center_message:
+                await self.command_center_message.edit(embed=embed)
             else:
-                await canal.purge(limit=10)
-                self.mensaje_command_center = await canal.send(embed=embed)
+                await channel.purge(limit=10)
+                self.command_center_message = await channel.send(embed=embed)
         except discord.NotFound:
-            self.mensaje_command_center = await canal.send(embed=embed)
+            self.command_center_message = await channel.send(embed=embed)
         except Exception as e:
-            print(f"[VEGA] Error actualizando command center: {e}")
+            print(f"[VEGA] Command center update error: {e}")
 
-    @actualizar_status.before_loop
+    @update_status.before_loop
     async def before_status(self):
         await self.bot.wait_until_ready()
 
-    @actualizar_logs.before_loop
+    @update_logs.before_loop
     async def before_logs(self):
         await self.bot.wait_until_ready()
 
-    @actualizar_command_center.before_loop
+    @update_command_center.before_loop
     async def before_command_center(self):
         await self.bot.wait_until_ready()
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Muestra el estado actual de Vega")
-    async def estado(self, ctx):
-        await ctx.respond(embed=self.construir_embed_status())
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Show current system status")
+    async def status(self, ctx):
+        await ctx.respond(embed=self.build_status_embed())
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Pausa o reanuda el monitor automático")
-    async def pausar(self, ctx, accion: discord.Option(str, choices=["pausar", "reanudar"])):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Pause or resume the automatic monitor")
+    async def pause(self, ctx, action: discord.Option(str, choices=["pause", "resume"])):
         intel_cog = self.bot.cogs.get("Intel")
         if not intel_cog:
-            await ctx.respond("⚠️ **VEGA** — Módulo Intel no encontrado.")
+            await ctx.respond("⚠️ **VEGA** — Intel module not found.")
             return
-        if accion == "pausar":
+        if action == "pause":
             if intel_cog.monitor.is_running():
                 intel_cog.monitor.cancel()
-                await ctx.respond("⏸️ **VEGA** — Monitor **pausado**.")
+                await ctx.respond("⏸️ **VEGA** — Monitor **paused**.")
             else:
-                await ctx.respond("⚠️ **VEGA** — El monitor ya estaba pausado.")
-        elif accion == "reanudar":
+                await ctx.respond("⚠️ **VEGA** — Monitor was already paused.")
+        elif action == "resume":
             if not intel_cog.monitor.is_running():
                 intel_cog.monitor.start()
-                await ctx.respond("▶️ **VEGA** — Monitor **reanudado**.")
+                await ctx.respond("▶️ **VEGA** — Monitor **resumed**.")
             else:
-                await ctx.respond("⚠️ **VEGA** — El monitor ya estaba activo.")
+                await ctx.respond("⚠️ **VEGA** — Monitor was already active.")
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Limpia el historial de noticias vistas")
-    async def limpiar(self, ctx):
-        if os.path.exists(VISTOS_PATH):
-            os.remove(VISTOS_PATH)
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Clear article memory and reset seen list")
+    async def clear(self, ctx):
+        if os.path.exists(SEEN_PATH):
+            os.remove(SEEN_PATH)
         intel_cog = self.bot.cogs.get("Intel")
         if intel_cog:
-            intel_cog.vistos = set()
+            intel_cog.seen = set()
         embed = discord.Embed(
-            title="🗑️ MEMORIA LIMPIADA",
-            description="El historial fue eliminado. El próximo ciclo escaneará desde cero.",
+            title="🗑️ MEMORY CLEARED",
+            description="Article history has been reset. Next cycle will scan all sources from scratch.",
             color=0xff8800,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_footer(text="VEGA OSINT • Operación completada")
+        embed.set_footer(text="VEGA OSINT • Operation complete")
         await ctx.respond(embed=embed)
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Cambia el intervalo del monitor sin reiniciar")
-    async def intervalo(self, ctx, minutos: discord.Option(int, description="Minutos entre ciclos (mínimo 2)")):
-        if minutos < 2:
-            await ctx.respond("⚠️ **VEGA** — El intervalo mínimo es 2 minutos.")
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Change the monitor scan interval without restarting")
+    async def interval(self, ctx, minutes: discord.Option(int, description="Minutes between cycles (minimum 2)")):
+        if minutes < 2:
+            await ctx.respond("⚠️ **VEGA** — Minimum interval is 2 minutes.")
             return
         intel_cog = self.bot.cogs.get("Intel")
         if not intel_cog:
-            await ctx.respond("⚠️ **VEGA** — Módulo Intel no encontrado.")
+            await ctx.respond("⚠️ **VEGA** — Intel module not found.")
             return
-        intel_cog.monitor.change_interval(minutes=minutos)
+        intel_cog.monitor.change_interval(minutes=minutes)
         embed = discord.Embed(
-            title="⏰ INTERVALO ACTUALIZADO",
-            description=f"El monitor escaneará cada **{minutos} minutos**.",
+            title="⏰ INTERVAL UPDATED",
+            description=f"Monitor will now scan every **{minutes} minutes**.",
             color=0x00ff41,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_footer(text="VEGA OSINT • Configuración actualizada")
+        embed.set_footer(text="VEGA OSINT • Configuration updated")
         await ctx.respond(embed=embed)
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Purga todos los mensajes de un canal")
-    async def purgar(self, ctx, canal: discord.Option(discord.TextChannel, description="Canal a limpiar")):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Purge all messages from a channel")
+    async def purge(self, ctx, channel: discord.Option(discord.TextChannel, description="Channel to clear")):
         await ctx.defer()
-        canales_protegidos = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID]
-        if canal.id in canales_protegidos:
-            await ctx.respond("⚠️ **VEGA** — Ese canal está protegido.")
+        protected = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID]
+        if channel.id in protected:
+            await ctx.respond("⚠️ **VEGA** — That channel is protected.")
             return
         try:
-            borrados = await canal.purge(limit=500)
-            if canal.id == CONFLICT_CHANNEL_ID:
+            deleted = await channel.purge(limit=500)
+            if channel.id == CONFLICT_CHANNEL_ID:
                 intel_cog = self.bot.cogs.get("Intel")
                 if intel_cog:
-                    intel_cog.mensaje_ciclo = None
+                    intel_cog.cycle_message = None
             embed = discord.Embed(
-                title="🗑️ PURGA COMPLETADA",
-                description=f"Se eliminaron **{len(borrados)} mensajes** de {canal.mention}.",
+                title="🗑️ PURGE COMPLETE",
+                description=f"Deleted **{len(deleted)} messages** from {channel.mention}.",
                 color=0xff8800,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text="VEGA OSINT • Operación completada")
+            embed.set_footer(text="VEGA OSINT • Operation complete")
             await ctx.respond(embed=embed)
-            self.registrar(f"🗑️ Purga en {canal.name} — {len(borrados)} mensajes")
+            self.log(f"🗑️ Purge in {channel.name} — {len(deleted)} messages deleted")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Show active Vega modules")
+    async def modules(self, ctx):
+        with open("modules.json", "r") as f:
+            config = json.load(f)["modules"]
+
+        embed = discord.Embed(
+            title="🧩 VEGA — SYSTEM MODULES",
+            color=0x00ff41,
+            timestamp=datetime.now(timezone.utc)
+        )
+        for name, data in config.items():
+            status = "✅ Active" if data["enabled"] else "⏸️ Inactive"
+            embed.add_field(
+                name=f"{status} — `{name}`",
+                value=data["description"],
+                inline=False
+            )
+        embed.set_footer(text="VEGA OSINT • Edit modules.json to enable/disable modules")
+        await ctx.respond(embed=embed)
 
 def setup(bot):
     bot.add_cog(VegaAdmin(bot))

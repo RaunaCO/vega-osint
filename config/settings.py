@@ -16,25 +16,25 @@ OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
 MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
 COMMAND_CENTER_ID = int(os.getenv("COMMAND_CENTER_ID"))
 
-REGION_CANALES = {
-    "Medio Oriente": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
-    "Europa":        int(os.getenv("REGION_EUROPA_ID")),
-    "África":        int(os.getenv("REGION_AFRICA_ID")),
-    "Asia":          int(os.getenv("REGION_ASIA_ID")),
-    "Américas":      int(os.getenv("REGION_AMERICAS_ID")),
+REGION_CHANNELS = {
+    "Middle East": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
+    "Europe":      int(os.getenv("REGION_EUROPA_ID")),
+    "Africa":      int(os.getenv("REGION_AFRICA_ID")),
+    "Asia":        int(os.getenv("REGION_ASIA_ID")),
+    "Americas":    int(os.getenv("REGION_AMERICAS_ID")),
 }
 
 # ============================================
-# IA
+# AI
 # ============================================
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
-MONITOR_INTERVALO = 15
+MONITOR_INTERVAL = 15
 
 # ============================================
-# FUENTES
+# NEWS SOURCES
 # ============================================
-FEEDS_NOTICIAS = {
+NEWS_FEEDS = {
     "BBC World":        "http://feeds.bbci.co.uk/news/world/rss.xml",
     "Al Jazeera":       "https://www.aljazeera.com/xml/rss/all.xml",
     "DW World":         "https://rss.dw.com/rdf/rss-en-world",
@@ -48,108 +48,105 @@ FEEDS_NOTICIAS = {
 }
 
 # ============================================
-# FILTROS
+# FILTERS
 # ============================================
-PALABRAS_CLAVE = [
+KEYWORDS = [
     "war", "conflict", "attack", "strike", "missile", "airstrike",
     "troops", "invasion", "crisis", "bomb", "killed", "casualties",
     "offensive", "ceasefire", "evacuation", "siege", "hostage",
     "nuclear", "drone", "explosion", "forces", "military",
     "NATO", "UN", "Pentagon", "Kremlin", "IDF", "Hamas", "Hezbollah",
-    "guerra", "conflicto", "ataque", "misil", "invasión", "bomba",
-    "muertos", "ofensiva", "alto el fuego", "evacuación", "rehén",
-    "dron", "explosión", "fuerzas", "militar",
     "Ukraine", "Gaza", "Iran", "Israel", "Syria", "Sudan",
-    "Yemen", "Taiwan", "Korea", "Ucrania", "Siria",
+    "Yemen", "Taiwan", "Korea", "Russia", "China",
     "OSINT", "intelligence", "geopolitics", "satellite", "confirmed",
     "geolocated", "footage", "evidence", "vessel", "aircraft"
 ]
 
-PALABRAS_CRITICAS = [
-    "nuclear", "killed", "airstrike", "muertos", "bomba",
+CRITICAL_KEYWORDS = [
+    "nuclear", "killed", "airstrike", "bomb",
     "casualties", "explosion", "massacre", "chemical", "ballistic"
 ]
 
 # ============================================
-# PROMPTS DE IA
+# AI PROMPTS
 # ============================================
-PROMPT_SISTEMA = """Eres VEGA, sistema de inteligencia geopolítica. Tono: técnico, directo. Responde en español."""
+PROMPT_SYSTEM = """You are VEGA, an AI-powered geopolitical intelligence system specializing in conflict analysis and military operations. Tone: technical, direct, no filler. Always respond in English."""
 
-PROMPT_SITREP = """Eres VEGA. Genera SITREPs con este formato:
+PROMPT_SITREP = """You are VEGA. Generate SITREPs using this exact format:
 
-**CLASIFICACIÓN:** VEGA-INTEL // NO DISTRIBUIR
-**FECHA/HORA:** [UTC]
-**ÁREA DE OPERACIONES:** [región]
+**CLASSIFICATION:** VEGA-INTEL // DO NOT DISTRIBUTE
+**DATE/TIME:** [UTC]
+**AREA OF OPERATIONS:** [region]
 
-**RESUMEN EJECUTIVO:** [2-3 oraciones]
+**EXECUTIVE SUMMARY:** [2-3 sentences]
 
-**DESARROLLOS CLAVE:**
-- [punto 1]
-- [punto 2]
-- [punto 3]
+**KEY DEVELOPMENTS:**
+- [point 1]
+- [point 2]
+- [point 3]
 
-**ACTORES:** [lista]
-**AMENAZA:** [CRÍTICA/ALTA/MEDIA/BAJA]
-**TENDENCIA:** [ESCALANDO/ESTABLE/DESESCALANDO]
-**PROYECCIÓN:** [1-2 oraciones]
+**KEY ACTORS:** [list]
+**THREAT ASSESSMENT:** [CRITICAL/HIGH/MEDIUM/LOW]
+**TREND:** [ESCALATING/STABLE/DE-ESCALATING]
+**OUTLOOK:** [1-2 sentences]
 
-Solo usa noticias proporcionadas. Si no hay info suficiente, indícalo."""
+Base analysis ONLY on provided news. If insufficient data, state it clearly."""
 
-PROMPT_CLASIFICAR = """Clasifica esta noticia. Responde SOLO con JSON válido:
+PROMPT_CLASSIFY = """Classify this news article. Respond ONLY with valid JSON, no extra text.
 
-NIVELES:
-- CRÍTICO: armas NBC, ataque directo entre estados, masacre documentada
-- ALTO: ofensiva activa, infraestructura atacada, crisis diplomática grave
-- MEDIO: tensiones, movimientos de tropas, declaraciones hostiles
-- BAJO: análisis, contexto, reportes sin confirmar
+LEVELS:
+- CRITICAL: NBC weapons use, direct inter-state attack with confirmed casualties, documented massacre
+- HIGH: active military offensive, critical infrastructure attacked, serious diplomatic crisis
+- MEDIUM: active tensions, troop movements, hostile declarations
+- LOW: analysis, context, unconfirmed reports
 
-REGIONES: Medio Oriente, Europa, África, Asia, Américas, Global
+REGIONS: Middle East, Europe, Africa, Asia, Americas, Global
 
 {
-  "nivel": "CRÍTICO/ALTO/MEDIO/BAJO",
-  "es_critica": true/false,
-  "region": "región",
-  "categoria": "Nuclear/Químico/Militar/Humanitario/Diplomático/Terrorismo/Otro",
-  "actores_principales": ["actor1"],
-  "ubicacion_precisa": "ciudad o región",
-  "confianza": "ALTA/MEDIA/BAJA",
-  "razon": "una oración"
+  "level": "CRITICAL/HIGH/MEDIUM/LOW",
+  "is_critical": true/false,
+  "region": "region name",
+  "category": "Nuclear/Chemical/Military/Humanitarian/Diplomatic/Terrorism/Intelligence/Other",
+  "key_actors": ["actor1"],
+  "precise_location": "city or specific region",
+  "confidence": "HIGH/MEDIUM/LOW",
+  "reason": "one technical sentence"
 }"""
 
-PROMPT_CICLO = """Eres VEGA. Reporte de ciclo breve:
+PROMPT_CYCLE = """You are VEGA. Generate a brief cycle report:
 
-**📊 CICLO [fecha]**
-**PANORAMA:** [2 oraciones]
-**REGIONES ACTIVAS:** [lista con 1 oración cada una]
-**TENDENCIA:** [1 oración]
-**NIVEL GLOBAL:** [CRÍTICO/ALTO/MEDIO/BAJO]"""
+**📊 CYCLE REPORT [date]**
+**OVERVIEW:** [2 sentences]
+**ACTIVE REGIONS:** [list with 1 sentence each]
+**DOMINANT TREND:** [1 sentence]
+**GLOBAL LEVEL:** [CRITICAL/HIGH/MEDIUM/LOW]"""
 
-PROMPT_ALERTA = """Eres VEGA. Alerta crítica:
+PROMPT_ALERT = """You are VEGA. Generate a critical alert:
 
-⚠️ **[nivel] — [categoria]**
-🌍 [region] | 📍 [ubicacion]
+⚠️ **[level] — [category]**
+🌍 [region] | 📍 [location]
 
-**SITUACIÓN:** [2 oraciones]
-**IMPACTO:** [1-2 oraciones]
-**ACTORES:** [lista]
-**PROYECCIÓN 24h:** [1 oración]
+**SITUATION:** [2 sentences]
+**IMMEDIATE IMPACT:** [1-2 sentences]
+**KEY ACTORS:** [list]
+**24H OUTLOOK:** [1 sentence]
 
-*[fuente] — [fecha]*"""
+*[source] — [date]*"""
 
-PROMPT_BRIEFING = """Eres VEGA. Briefing de inteligencia:
+PROMPT_BRIEFING = """You are VEGA. Generate an intelligence briefing:
 
-# 🌅 BRIEFING — [fecha]
-**Período:** Últimas {horas} horas
+# 🌅 INTELLIGENCE BRIEFING — [date]
+**Period covered:** Last {hours} hours
 
-## RESUMEN
-[3 oraciones del panorama global]
+## EXECUTIVE SUMMARY
+[3 sentences on the global picture]
 
-[Por cada región activa:]
-## [REGIÓN]
-[Eventos cronológicos con hora y nivel]
-**Balance:** [1 oración]
+[For each active region:]
+## [REGION]
+[Chronological events with time and threat level]
+**Regional assessment:** [1 sentence]
 
-## CONCLUSIÓN
-**Crítico:** [evento más importante]
-**Tendencia:** [patrón]
-**Monitorear:** [qué seguir]"""
+## OPERATIONAL CONCLUSION
+**Most critical event:** [top event]
+**Dominant trend:** [pattern]
+**Watch list:** [what to monitor next]"""

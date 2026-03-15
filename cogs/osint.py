@@ -8,59 +8,60 @@ class OSINT(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Busca un usuario en múltiples redes sociales")
-    async def userrecon(self, ctx, usuario: str):
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Search for a username across multiple social platforms")
+    async def userrecon(self, ctx, username: str):
         await ctx.defer()
 
-        plataformas = {
-            "GitHub":    f"https://github.com/{usuario}",
-            "Instagram": f"https://www.instagram.com/{usuario}",
-            "TikTok":    f"https://www.tiktok.com/@{usuario}",
-            "Twitter/X": f"https://twitter.com/{usuario}",
-            "Reddit":    f"https://www.reddit.com/user/{usuario}",
-            "Pinterest": f"https://www.pinterest.com/{usuario}",
+        platforms = {
+            "GitHub":    f"https://github.com/{username}",
+            "Instagram": f"https://www.instagram.com/{username}",
+            "TikTok":    f"https://www.tiktok.com/@{username}",
+            "Twitter/X": f"https://twitter.com/{username}",
+            "Reddit":    f"https://www.reddit.com/user/{username}",
+            "Pinterest": f"https://www.pinterest.com/{username}",
         }
 
-        encontrados = []
-        no_encontrados = []
+        found = []
+        not_found = []
 
         async with aiohttp.ClientSession() as session:
-            for plataforma, url in plataformas.items():
+            for platform, url in platforms.items():
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                         if resp.status == 200:
-                            encontrados.append(f"🟢 **{plataforma}** — [ver perfil]({url})")
+                            found.append(f"🟢 **{platform}** — [view profile]({url})")
                         else:
-                            no_encontrados.append(f"🔴 {plataforma}")
+                            not_found.append(f"🔴 {platform}")
                 except:
-                    no_encontrados.append(f"⚫ {plataforma} (sin respuesta)")
+                    not_found.append(f"⚫ {platform} (no response)")
 
         embed = discord.Embed(
-            title=f"🔍 RECON — `{usuario}`",
-            description="Análisis de presencia digital completado.",
+            title=f"🔍 RECON — `{username}`",
+            description="Digital presence analysis complete.",
             color=0x00ff41,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.add_field(name="✅ PERFILES ENCONTRADOS", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
-        embed.add_field(name="❌ NO ENCONTRADOS", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
-        embed.set_footer(text="VEGA OSINT • Protocolo de Reconocimiento Digital")
+        embed.add_field(name="✅ PROFILES FOUND", value="\n".join(found) if found else "None", inline=False)
+        embed.add_field(name="❌ NOT FOUND", value="\n".join(not_found) if not_found else "None", inline=False)
+        embed.set_footer(text="VEGA OSINT • Digital Reconnaissance Protocol")
         await ctx.respond(embed=embed)
 
-        canal_hits = self.bot.get_channel(OSINT_HITS_CHANNEL_ID)
-        if canal_hits:
-            embed_archivo = discord.Embed(
-                title=f"📁 RECON ARCHIVADO — `{usuario}`",
+        # Archive result in #osint-hits
+        hits_channel = self.bot.get_channel(OSINT_HITS_CHANNEL_ID)
+        if hits_channel:
+            archive_embed = discord.Embed(
+                title=f"📁 RECON ARCHIVED — `{username}`",
                 color=0x00ff41,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed_archivo.add_field(name="✅ Encontrados", value="\n".join(encontrados) if encontrados else "Ninguno", inline=False)
-            embed_archivo.add_field(name="❌ No encontrados", value="\n".join(no_encontrados) if no_encontrados else "Ninguno", inline=False)
-            embed_archivo.set_footer(text=f"VEGA OSINT • Ejecutado por {ctx.author.display_name}")
-            await canal_hits.send(embed=embed_archivo)
+            archive_embed.add_field(name="✅ Found", value="\n".join(found) if found else "None", inline=False)
+            archive_embed.add_field(name="❌ Not Found", value="\n".join(not_found) if not_found else "None", inline=False)
+            archive_embed.set_footer(text=f"VEGA OSINT • Requested by {ctx.author.display_name}")
+            await hits_channel.send(embed=archive_embed)
 
         admin = self.bot.cogs.get("VegaAdmin")
         if admin:
-            admin.registrar(f"🔍 /userrecon: {usuario} — {len(encontrados)} perfiles encontrados")
+            admin.log(f"🔍 /userrecon: {username} — {len(found)} profiles found")
 
 def setup(bot):
     bot.add_cog(OSINT(bot))

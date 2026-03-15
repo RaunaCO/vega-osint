@@ -5,72 +5,79 @@ import aiohttp
 import feedparser
 from deep_translator import GoogleTranslator
 from langdetect import detect, LangDetectException
-from config.settings import FEEDS_NOTICIAS
+from config.settings import NEWS_FEEDS
 
-VISTOS_PATH = "data/vistos.json"
+SEEN_PATH = "data/seen.json"
 
-def limpiar_html(texto: str) -> str:
-    return re.sub(r'<[^>]+>', '', texto).strip()
+def strip_html(text: str) -> str:
+    """Remove HTML tags from a string."""
+    return re.sub(r'<[^>]+>', '', text).strip()
 
-def detectar_y_traducir(texto: str):
-    if not texto or len(texto) < 10:
-        return texto, False
+def detect_and_translate(text: str):
+    """
+    Detect language and translate to English if not already English.
+    Returns (translated_text, was_translated).
+    """
+    if not text or len(text) < 10:
+        return text, False
     try:
-        idioma = detect(texto)
-        if idioma == "es":
-            return texto, False
-        traducido = GoogleTranslator(source="auto", target="es").translate(texto)
-        return traducido, True
+        lang = detect(text)
+        if lang == "en":
+            return text, False
+        translated = GoogleTranslator(source="auto", target="en").translate(text)
+        return translated, True
     except LangDetectException:
-        return texto, False
+        return text, False
     except Exception as e:
-        print(f"[VEGA] Error de traducción: {e}")
-        return texto, False
+        print(f"[VEGA] Translation error: {e}")
+        return text, False
 
-def cargar_vistos() -> set:
+def load_seen() -> set:
+    """Load seen article links from database or fallback JSON."""
     try:
-        from utils.database import obtener_todos_los_links
-        return obtener_todos_los_links()
+        from utils.database import get_all_links
+        return get_all_links()
     except Exception:
-        if os.path.exists(VISTOS_PATH):
-            with open(VISTOS_PATH, "r") as f:
+        if os.path.exists(SEEN_PATH):
+            with open(SEEN_PATH, "r") as f:
                 return set(json.load(f))
         return set()
 
-def guardar_vistos(vistos: set):
-    with open(VISTOS_PATH, "w") as f:
-        json.dump(list(vistos), f)
+def save_seen(seen: set):
+    """Save seen article links to fallback JSON."""
+    with open(SEEN_PATH, "w") as f:
+        json.dump(list(seen), f)
 
-def extraer_imagen(entrada) -> str:
-    if hasattr(entrada, "media_content") and entrada.media_content:
-        for media in entrada.media_content:
+def extract_image(entry) -> str:
+    """Extract image URL from a feed entry."""
+    if hasattr(entry, "media_content") and entry.media_content:
+        for media in entry.media_content:
             if media.get("type", "").startswith("image"):
                 return media.get("url", "")
-    if hasattr(entrada, "media_thumbnail") and entrada.media_thumbnail:
-        return entrada.media_thumbnail[0].get("url", "")
-    summary_raw = entrada.get("summary", "")
+    if hasattr(entry, "media_thumbnail") and entry.media_thumbnail:
+        return entry.media_thumbnail[0].get("url", "")
+    summary_raw = entry.get("summary", "")
     match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', summary_raw)
     if match:
         return match.group(1)
     return ""
 
-async def buscar_noticias_relevantes(tema: str, max_noticias: int = 8) -> list:
-    palabras = re.split(r'[\s\-,]+', tema.lower())
-    noticias_encontradas = []
+async def search_relevant_news(topic: str, max_results: int = 8) -> list:
+    """Search news feeds for articles relevant to a given topic."""
+    keywords = re.split(r'[\s\-,]+', topic.lower())
+    found = []
     async with aiohttp.ClientSession() as session:
-        for fuente, url in FEEDS_NOTICIAS.items():
+        for source, url in NEWS_FEEDS.items():
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    contenido = await resp.text()
-                    feed = feedparser.parse(contenido)
-                    for entrada in feed.entries[:15]:
-                        titulo = entrada.get("title", "")
-                        resumen = limpiar_html(entrada.get("summary", ""))[:300]
-                        link = entrada.get("link", "")
-                        if any(p in titulo.lower() or p in resumen.lower() for p in palabras):
-                            noticias_encontradas.append(
-                                f"[{fuente}] {titulo}\n{resumen}\nFuente: {link}"
-                            )
+                    content = await resp.text()
+                    feed = feedparser.parse(content)
+                    for entry in feed.entries[:15]:
+                        title = entry.get("title", "")
+                        summary = strip_html(entry.get("summary", ""))[:300]
+                        link = entry.get("link", "")
+                        if any(k in title.lower() or k in summary.lower() for k in keywords):
+                            found.append(f"[{source}] {title}\n{summary}\nSource: {link}")
             except Exception as e:
-                print(f"[VEGA] Error en feed {fuente}: {e}")
-    return noticias_encontradas[:max_noticias]
+                print(f"[VEGA] Feed error {source}: {e}")
+    return found[:max_results]

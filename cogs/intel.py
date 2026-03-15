@@ -7,26 +7,26 @@ import aiohttp
 from datetime import datetime
 from groq import Groq
 from config.settings import (
-    GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CANALES,
-    FEEDS_NOTICIAS, PALABRAS_CLAVE, PALABRAS_CRITICAS,
-    GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASIFICAR, PROMPT_CICLO, PROMPT_ALERTA
+    GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
+    NEWS_FEEDS, KEYWORDS, CRITICAL_KEYWORDS,
+    GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
 )
-from utils.helpers import limpiar_html, cargar_vistos, guardar_vistos, detectar_y_traducir, extraer_imagen
-from utils.database import guardar_articulo
+from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate, extract_image
+from utils.database import save_article
 
-cliente_groq = Groq(api_key=GROQ_API_KEY)
+client_groq = Groq(api_key=GROQ_API_KEY)
 
-def color_por_nivel(nivel: str) -> int:
-    return {"CRÍTICO": 0xff0000, "ALTO": 0xff6600, "MEDIO": 0xffaa00, "BAJO": 0xffff00}.get(nivel, 0xff8800)
+def color_by_level(level: str) -> int:
+    return {"CRITICAL": 0xff0000, "HIGH": 0xff6600, "MEDIUM": 0xffaa00, "LOW": 0xffff00}.get(level, 0xff8800)
 
-def emoji_por_nivel(nivel: str) -> str:
-    return {"CRÍTICO": "🔴", "ALTO": "🟠", "MEDIO": "🟡", "BAJO": "🟢"}.get(nivel, "🟠")
+def emoji_by_level(level: str) -> str:
+    return {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "🟠")
 
 class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.vistos = cargar_vistos()
-        self.mensaje_ciclo = None
+        self.seen = load_seen()
+        self.cycle_message = None
         self.monitor.start()
 
     def cog_unload(self):
@@ -35,251 +35,259 @@ class Intel(commands.Cog):
     def get_admin(self):
         return self.bot.cogs.get("VegaAdmin")
 
-    async def clasificar_noticia(self, titulo: str, resumen: str, fuente: str) -> dict:
+    async def classify_article(self, title: str, summary: str, source: str) -> dict:
+        """Use AI to classify a news article by threat level and region."""
         try:
-            respuesta = cliente_groq.chat.completions.create(
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_CLASIFICAR},
-                    {"role": "user", "content": f"Título: {titulo}\nResumen: {resumen}\nFuente: {fuente}"}
+                    {"role": "system", "content": PROMPT_CLASSIFY},
+                    {"role": "user", "content": f"Title: {title}\nSummary: {summary}\nSource: {source}"}
                 ],
                 max_tokens=300,
                 temperature=0.1
             )
-            contenido = respuesta.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
-            return json.loads(contenido)
+            content = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+            return json.loads(content)
         except Exception as e:
-            print(f"[VEGA] Error clasificando: {e}")
+            print(f"[VEGA] Classification error: {e}")
             return {
-                "nivel": "MEDIO", "es_critica": False, "region": "Global",
-                "categoria": "Otro", "actores_principales": [],
-                "ubicacion_precisa": "No especificada", "confianza": "BAJA",
-                "razon": "Clasificación automática fallida"
+                "level": "MEDIUM", "is_critical": False, "region": "Global",
+                "category": "Other", "key_actors": [],
+                "precise_location": "Not specified", "confidence": "LOW",
+                "reason": "Automatic classification failed"
             }
 
-    async def enviar_embed_individual(self, noticia: dict, clasificacion: dict):
-        region = clasificacion.get("region", "Global")
-        canal_id = REGION_CANALES.get(region)
-        if not canal_id:
+    async def post_article_embed(self, article: dict, classification: dict):
+        """Post a classified article to its regional channel."""
+        region = classification.get("region", "Global")
+        channel_id = REGION_CHANNELS.get(region)
+        if not channel_id:
             return
-        canal = self.bot.get_channel(canal_id)
-        if not canal:
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
             return
 
-        nivel = clasificacion["nivel"]
+        level = classification["level"]
         embed = discord.Embed(
-            title=noticia["titulo"][:250],
-            url=noticia["link"],
-            color=color_por_nivel(nivel),
+            title=article["title"][:250],
+            url=article["link"],
+            color=color_by_level(level),
             timestamp=datetime.utcnow()
         )
-        if noticia.get("traducido") and noticia.get("titulo_original"):
-            embed.title = f"{noticia['titulo'][:200]}\n*({noticia['titulo_original'][:100]})*"
+        if article.get("translated") and article.get("original_title"):
+            embed.title = f"{article['title'][:200]}\n*({article['original_title'][:100]})*"
 
-        embed.add_field(name="📰 Resumen", value=noticia["resumen"][:400], inline=False)
-        embed.add_field(name="🧠 Análisis VEGA", value=clasificacion.get("razon", "N/A"), inline=False)
-        embed.add_field(name=f"{emoji_por_nivel(nivel)} Nivel", value=nivel, inline=True)
-        embed.add_field(name="🏷️ Tipo", value=clasificacion.get("categoria", "Otro"), inline=True)
-        embed.add_field(name="🎯 Confianza", value=clasificacion.get("confianza", "MEDIA"), inline=True)
-        embed.add_field(name="📍 Ubicación", value=clasificacion.get("ubicacion_precisa", "No especificada"), inline=True)
-        embed.add_field(name="👥 Actores", value=", ".join(clasificacion.get("actores_principales", [])) or "No identificados", inline=True)
-        embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
+        embed.add_field(name="📰 Summary", value=article["summary"][:400], inline=False)
+        embed.add_field(name="🧠 VEGA Analysis", value=classification.get("reason", "N/A"), inline=False)
+        embed.add_field(name=f"{emoji_by_level(level)} Level", value=level, inline=True)
+        embed.add_field(name="🏷️ Type", value=classification.get("category", "Other"), inline=True)
+        embed.add_field(name="🎯 Confidence", value=classification.get("confidence", "MEDIUM"), inline=True)
+        embed.add_field(name="📍 Location", value=classification.get("precise_location", "Not specified"), inline=True)
+        embed.add_field(name="👥 Actors", value=", ".join(classification.get("key_actors", [])) or "Not identified", inline=True)
+        embed.add_field(name="🔗 Source", value=f"[{article['source']}]({article['link']})", inline=True)
 
-        if noticia.get("traducido"):
-            embed.add_field(name="🌐 Idioma", value="Traducido al español", inline=True)
-        if noticia.get("imagen"):
-            embed.set_image(url=noticia["imagen"])
+        if article.get("translated"):
+            embed.add_field(name="🌐 Language", value="Translated to English", inline=True)
+        if article.get("image"):
+            embed.set_image(url=article["image"])
 
         embed.set_author(name=f"VEGA INTEL — {region}")
-        embed.set_footer(text="VEGA OSINT • Protocolo de Inteligencia Sintética")
-        await canal.send(embed=embed)
+        embed.set_footer(text="VEGA OSINT • Synthetic Intelligence Protocol")
+        await channel.send(embed=embed)
 
-    async def enviar_alerta_critica(self, noticia: dict, clasificacion: dict):
-        canal = self.bot.get_channel(CRITICAL_CHANNEL_ID)
-        if not canal:
+    async def post_critical_alert(self, article: dict, classification: dict):
+        """Post a critical alert to the dedicated alerts channel."""
+        channel = self.bot.get_channel(CRITICAL_CHANNEL_ID)
+        if not channel:
             return
         try:
-            respuesta = cliente_groq.chat.completions.create(
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_ALERTA},
-                    {"role": "user", "content": f"Título: {noticia['titulo']}\nResumen: {noticia['resumen']}\nFuente: {noticia['fuente']}\nNivel: {clasificacion['nivel']}\nRegión: {clasificacion['region']}\nCategoría: {clasificacion['categoria']}\nActores: {', '.join(clasificacion.get('actores_principales', []))}\nUbicación: {clasificacion.get('ubicacion_precisa', 'N/A')}"}
+                    {"role": "system", "content": PROMPT_ALERT},
+                    {"role": "user", "content": f"Title: {article['title']}\nSummary: {article['summary']}\nSource: {article['source']}\nLevel: {classification['level']}\nRegion: {classification['region']}\nCategory: {classification['category']}\nActors: {', '.join(classification.get('key_actors', []))}\nLocation: {classification.get('precise_location', 'N/A')}"}
                 ],
                 max_tokens=400,
                 temperature=0.2
             )
-            nivel = clasificacion["nivel"]
+            level = classification["level"]
             embed = discord.Embed(
-                title=f"{emoji_por_nivel(nivel)} ALERTA {nivel} — {clasificacion['categoria'].upper()}",
-                description=respuesta.choices[0].message.content,
-                color=color_por_nivel(nivel),
+                title=f"{emoji_by_level(level)} {level} ALERT — {classification['category'].upper()}",
+                description=response.choices[0].message.content,
+                color=color_by_level(level),
                 timestamp=datetime.utcnow()
             )
-            if noticia.get("imagen"):
-                embed.set_image(url=noticia["imagen"])
-            embed.add_field(name="🌍 Región", value=clasificacion["region"], inline=True)
-            embed.add_field(name="📍 Ubicación", value=clasificacion.get("ubicacion_precisa", "N/A"), inline=True)
-            embed.add_field(name="🔗 Fuente", value=f"[{noticia['fuente']}]({noticia['link']})", inline=True)
-            embed.set_footer(text="VEGA OSINT • PRIORIDAD MÁXIMA")
+            if article.get("image"):
+                embed.set_image(url=article["image"])
+            embed.add_field(name="🌍 Region", value=classification["region"], inline=True)
+            embed.add_field(name="📍 Location", value=classification.get("precise_location", "N/A"), inline=True)
+            embed.add_field(name="🔗 Source", value=f"[{article['source']}]({article['link']})", inline=True)
+            embed.set_footer(text="VEGA OSINT • MAXIMUM PRIORITY")
 
-            await canal.send(content="@everyone" if nivel == "CRÍTICO" else "", embed=embed)
+            await channel.send(content="@everyone" if level == "CRITICAL" else "", embed=embed)
 
             admin = self.get_admin()
             if admin:
-                admin.registrar(f"{emoji_por_nivel(nivel)} Alerta {nivel}: {noticia['titulo'][:45]}...")
+                admin.log(f"{emoji_by_level(level)} {level} Alert: {article['title'][:45]}...")
         except Exception as e:
-            print(f"[VEGA] Error enviando alerta: {e}")
+            print(f"[VEGA] Alert error: {e}")
 
-    async def actualizar_reporte_ciclo(self, canal, contenido: str, noticias: list):
-        hay_critica = any(n.get("clasificacion", {}).get("nivel") == "CRÍTICO" for n in noticias)
-        imagen = next((n["imagen"] for n in noticias if n.get("imagen")), None)
+    async def update_cycle_report(self, channel, content: str, articles: list):
+        """Update the live cycle report message in #conflict-watch."""
+        has_critical = any(a.get("classification", {}).get("level") == "CRITICAL" for a in articles)
+        image = next((a["image"] for a in articles if a.get("image")), None)
 
         embed = discord.Embed(
-            title="📡 ÚLTIMO REPORTE DE CICLO",
-            description=contenido[:4000],
-            color=0xff0000 if hay_critica else 0x0088ff,
+            title="📡 LATEST CYCLE REPORT",
+            description=content[:4000],
+            color=0xff0000 if has_critical else 0x0088ff,
             timestamp=datetime.utcnow()
         )
-        if imagen:
-            embed.set_thumbnail(url=imagen)
-        embed.set_footer(text=f"VEGA OSINT • {len(noticias)} noticias • Actualizado cada ciclo")
+        if image:
+            embed.set_thumbnail(url=image)
+        embed.set_footer(text=f"VEGA OSINT • {len(articles)} articles • Updated every cycle")
 
         try:
-            if self.mensaje_ciclo:
-                await self.mensaje_ciclo.edit(embed=embed)
+            if self.cycle_message:
+                await self.cycle_message.edit(embed=embed)
             else:
-                await canal.purge(limit=5)
-                self.mensaje_ciclo = await canal.send(embed=embed)
+                await channel.purge(limit=5)
+                self.cycle_message = await channel.send(embed=embed)
         except discord.NotFound:
-            self.mensaje_ciclo = await canal.send(embed=embed)
+            self.cycle_message = await channel.send(embed=embed)
         except Exception as e:
-            print(f"[VEGA] Error actualizando reporte: {e}")
+            print(f"[VEGA] Cycle report update error: {e}")
 
-    async def ejecutar_escaneo(self):
+    async def run_scan(self):
+        """Main scanning function — fetch, filter, classify and post new articles."""
         admin = self.get_admin()
         if admin:
-            admin.registrar("📡 Iniciando escaneo de fuentes...")
+            admin.log("📡 Starting source scan...")
 
-        canal_principal = self.bot.get_channel(CONFLICT_CHANNEL_ID)
-        if not canal_principal:
+        main_channel = self.bot.get_channel(CONFLICT_CHANNEL_ID)
+        if not main_channel:
             return
 
-        noticias_nuevas = []
+        new_articles = []
 
         async with aiohttp.ClientSession() as session:
-            for fuente, url in FEEDS_NOTICIAS.items():
+            for source, url in NEWS_FEEDS.items():
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                         feed = feedparser.parse(await resp.text())
-                        for entrada in feed.entries[:2]:
-                            titulo = entrada.get("title", "")
-                            link = entrada.get("link", "")
-                            resumen = limpiar_html(entrada.get("summary", ""))[:400]
-                            fecha_raw = entrada.get("published", "")[:30] if entrada.get("published") else "N/A"
-                            imagen = extraer_imagen(entrada)
+                        for entry in feed.entries[:2]:
+                            title = entry.get("title", "")
+                            link = entry.get("link", "")
+                            summary = strip_html(entry.get("summary", ""))[:400]
+                            pub_date = entry.get("published", "")[:30] if entry.get("published") else "N/A"
+                            image = extract_image(entry)
 
-                            if link in self.vistos:
+                            if link in self.seen:
                                 continue
-                            if any(p in titulo.lower() for p in PALABRAS_CLAVE):
-                                self.vistos.add(link)
-                                guardar_vistos(self.vistos)
+                            if any(k in title.lower() for k in KEYWORDS):
+                                self.seen.add(link)
+                                save_seen(self.seen)
 
-                                titulo_final, traducido = detectar_y_traducir(titulo)
-                                resumen_final, _ = detectar_y_traducir(resumen)
+                                title_en, was_translated = detect_and_translate(title)
+                                summary_en, _ = detect_and_translate(summary)
 
-                                noticias_nuevas.append({
-                                    "titulo": titulo_final,
-                                    "titulo_original": titulo if traducido else None,
-                                    "resumen": resumen_final,
-                                    "fuente": fuente,
+                                new_articles.append({
+                                    "title": title_en,
+                                    "original_title": title if was_translated else None,
+                                    "summary": summary_en,
+                                    "source": source,
                                     "link": link,
-                                    "fecha": fecha_raw,
-                                    "imagen": imagen,
-                                    "traducido": traducido
+                                    "date": pub_date,
+                                    "image": image,
+                                    "translated": was_translated
                                 })
 
                                 if admin:
-                                    admin.registrar(f"🟠 [{fuente}] {titulo_final[:45]}...")
-                                    admin.registrar_noticia({
-                                        "titulo": titulo_final,
-                                        "nivel": "MEDIO",
+                                    admin.log(f"🟠 [{source}] {title_en[:45]}...")
+                                    admin.log_article({
+                                        "title": title_en,
+                                        "level": "MEDIUM",
                                         "region": "Global",
-                                        "hora": datetime.utcnow().strftime("%H:%M")
+                                        "time": datetime.utcnow().strftime("%H:%M")
                                     })
 
                 except Exception as e:
-                    print(f"[VEGA] Error en feed {fuente}: {e}")
+                    print(f"[VEGA] Feed error {source}: {e}")
                     if admin:
-                        admin.registrar(f"⚠️ Error en {fuente}: {str(e)[:40]}")
+                        admin.log(f"⚠️ Feed error {source}: {str(e)[:40]}")
 
-        if not noticias_nuevas:
+        if not new_articles:
             if admin:
-                admin.registrar("✅ Escaneo completado — Sin noticias nuevas")
+                admin.log("✅ Scan complete — No new articles")
             return
 
-        noticias_nuevas = noticias_nuevas[:5]
+        # Hard limit to avoid API rate limits
+        new_articles = new_articles[:5]
 
         if admin:
-            admin.registrar(f"🧠 Clasificando {len(noticias_nuevas)} noticias...")
+            admin.log(f"🧠 Classifying {len(new_articles)} articles...")
 
-        for noticia in noticias_nuevas:
-            clasificacion = await self.clasificar_noticia(noticia["titulo"], noticia["resumen"], noticia["fuente"])
-            noticia["clasificacion"] = clasificacion
-            await self.enviar_embed_individual(noticia, clasificacion)
+        for article in new_articles:
+            classification = await self.classify_article(article["title"], article["summary"], article["source"])
+            article["classification"] = classification
+            await self.post_article_embed(article, classification)
 
-            guardar_articulo({**noticia, **clasificacion})
+            # Save to database
+            save_article({**article, **classification})
 
             if admin:
-                admin.registrar_noticia({
-                    "titulo": noticia["titulo"],
-                    "nivel": clasificacion.get("nivel", "MEDIO"),
-                    "region": clasificacion.get("region", "Global"),
-                    "hora": datetime.utcnow().strftime("%H:%M")
+                admin.log_article({
+                    "title": article["title"],
+                    "level": classification.get("level", "MEDIUM"),
+                    "region": classification.get("region", "Global"),
+                    "time": datetime.utcnow().strftime("%H:%M")
                 })
 
-            if clasificacion["nivel"] in ["CRÍTICO", "ALTO"]:
-                await self.enviar_alerta_critica(noticia, clasificacion)
+            if classification["level"] in ["CRITICAL", "HIGH"]:
+                await self.post_critical_alert(article, classification)
             await asyncio.sleep(4)
 
-        contexto = "\n".join([
-            f"{i}. {n['titulo']} | {n['fuente']} | {n.get('clasificacion', {}).get('region', 'Global')} | {n.get('clasificacion', {}).get('nivel', 'MEDIO')} | {n['resumen'][:200]}"
-            for i, n in enumerate(noticias_nuevas, 1)
+        # Build context for cycle report
+        context = "\n".join([
+            f"{i}. {a['title']} | {a['source']} | {a.get('classification', {}).get('region', 'Global')} | {a.get('classification', {}).get('level', 'MEDIUM')} | {a['summary'][:200]}"
+            for i, a in enumerate(new_articles, 1)
         ])
 
         try:
-            respuesta = cliente_groq.chat.completions.create(
+            response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_CICLO},
-                    {"role": "user", "content": f"Fecha: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{contexto}"}
+                    {"role": "system", "content": PROMPT_CYCLE},
+                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{context}"}
                 ],
                 max_tokens=600,
                 temperature=0.2
             )
-            await self.actualizar_reporte_ciclo(canal_principal, respuesta.choices[0].message.content, noticias_nuevas)
+            await self.update_cycle_report(main_channel, response.choices[0].message.content, new_articles)
 
             if admin:
-                admin.incrementar_ciclo()
-                admin.registrar(f"✅ Ciclo completado — {len(noticias_nuevas)} noticias")
+                admin.increment_cycle()
+                admin.log(f"✅ Cycle complete — {len(new_articles)} articles processed")
         except Exception as e:
-            print(f"[VEGA] Error en reporte: {e}")
+            print(f"[VEGA] Cycle report error: {e}")
             if admin:
-                admin.registrar(f"❌ Error en reporte: {str(e)[:50]}")
+                admin.log(f"❌ Cycle report error: {str(e)[:50]}")
 
     @tasks.loop(minutes=15)
     async def monitor(self):
-        await self.ejecutar_escaneo()
+        await self.run_scan()
 
     @monitor.before_loop
     async def before_monitor(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(30)
 
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Escanea todas las fuentes ahora mismo")
+    @discord.slash_command(guild_ids=[GUILD_ID], description="Scan all sources right now")
     async def scanfeed(self, ctx):
         await ctx.defer()
-        await ctx.respond("📡 **VEGA** — Escaneando fuentes...")
-        await self.ejecutar_escaneo()
+        await ctx.respond("📡 **VEGA** — Scanning sources...")
+        await self.run_scan()
 
 def setup(bot):
     bot.add_cog(Intel(bot))

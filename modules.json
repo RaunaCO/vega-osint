@@ -2,22 +2,22 @@
   "modules": {
     "intel": {
       "enabled": true,
-      "description": "Monitor de noticias y conflictos en tiempo real",
+      "description": "Real-time news monitoring and AI-powered conflict classification",
       "cog": "cogs.intel"
     },
     "ai_brain": {
       "enabled": true,
-      "description": "Cerebro de IA — SITREPs, análisis y briefings",
+      "description": "AI brain — SITREPs, intelligence briefings and analysis",
       "cog": "cogs.ai_brain"
     },
     "osint": {
       "enabled": true,
-      "description": "Herramientas OSINT — reconocimiento de usuarios",
+      "description": "OSINT tools — username reconnaissance across platforms",
       "cog": "cogs.osint"
     },
     "admin": {
       "enabled": true,
-      "description": "Panel de administración y monitoreo del sistema",
+      "description": "System administration — live panels and control commands",
       "cog": "cogs.admin"
     }
   }
