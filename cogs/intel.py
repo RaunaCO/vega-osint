@@ -132,6 +132,9 @@ class Intel(commands.Cog):
                 admin.log(f"{emoji_by_level(level)} {level} Alert: {article['title'][:45]}...")
         except Exception as e:
             print(f"[VEGA] Alert error: {e}")
+            admin = self.get_admin()
+            if admin:
+                await admin.report_error("critical_alert", str(e))
 
     async def update_cycle_report(self, channel, content: str, articles: list):
         """Update the live cycle report message in #conflict-watch."""
@@ -222,7 +225,6 @@ class Intel(commands.Cog):
                 admin.log("✅ Scan complete — No new articles")
             return
 
-        # Hard limit to avoid API rate limits
         new_articles = new_articles[:5]
 
         if admin:
@@ -233,7 +235,6 @@ class Intel(commands.Cog):
             article["classification"] = classification
             await self.post_article_embed(article, classification)
 
-            # Save to database
             save_article({**article, **classification})
 
             if admin:
@@ -248,7 +249,6 @@ class Intel(commands.Cog):
                 await self.post_critical_alert(article, classification)
             await asyncio.sleep(4)
 
-        # Build context for cycle report
         context = "\n".join([
             f"{i}. {a['title']} | {a['source']} | {a.get('classification', {}).get('region', 'Global')} | {a.get('classification', {}).get('level', 'MEDIUM')} | {a['summary'][:200]}"
             for i, a in enumerate(new_articles, 1)
@@ -273,6 +273,7 @@ class Intel(commands.Cog):
             print(f"[VEGA] Cycle report error: {e}")
             if admin:
                 admin.log(f"❌ Cycle report error: {str(e)[:50]}")
+                await admin.report_error("cycle_report", str(e))
 
     @tasks.loop(minutes=15)
     async def monitor(self):

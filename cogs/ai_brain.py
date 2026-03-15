@@ -5,7 +5,8 @@ from datetime import datetime, timezone, timedelta
 from config.settings import (
     GUILD_ID, GROQ_API_KEY, GROQ_MODEL,
     PROMPT_SITREP, PROMPT_SYSTEM, PROMPT_BRIEFING,
-    CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CHANNELS
+    CONFLICT_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID, REGION_CHANNELS,
+    AI_ANALYSIS_CHANNEL_ID, BRIEFING_ROOM_CHANNEL_ID
 )
 from utils.helpers import search_relevant_news
 from utils.database import save_sitrep
@@ -17,7 +18,6 @@ class AIBrain(commands.Cog):
         self.bot = bot
 
     async def archive_sitrep(self, topic: str, content: str, sources: int, author: str):
-        """Save SITREP to database and post to #mission-logs."""
         save_sitrep(topic, content, sources, author)
         channel = self.bot.get_channel(MISSION_LOGS_CHANNEL_ID)
         if not channel:
@@ -30,6 +30,12 @@ class AIBrain(commands.Cog):
         )
         embed.set_footer(text=f"VEGA OSINT • {sources} sources • By {author}")
         await channel.send(embed=embed)
+
+    async def post_to_channel(self, channel_id: int, embed: discord.Embed):
+        """Helper to post an embed to a specific channel."""
+        channel = self.bot.get_channel(channel_id)
+        if channel:
+            await channel.send(embed=embed)
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Generate a SITREP based on real-time news")
     async def sitrep(self, ctx, topic: str):
@@ -48,7 +54,12 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             content = response.choices[0].message.content[:4000]
-            embed = discord.Embed(title=f"📋 SITREP — {topic.upper()}", description=content, color=0x00ff41, timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(
+                title=f"📋 SITREP — {topic.upper()}",
+                description=content,
+                color=0x00ff41,
+                timestamp=datetime.now(timezone.utc)
+            )
             embed.set_footer(text=f"VEGA OSINT • {len(news)} sources analyzed")
             await ctx.respond(embed=embed)
             await self.archive_sitrep(topic, content, len(news), ctx.author.display_name)
@@ -58,6 +69,9 @@ class AIBrain(commands.Cog):
                 admin.log(f"📋 /sitrep: {topic[:40]} — {len(news)} sources")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+            admin = self.bot.cogs.get("VegaAdmin")
+            if admin:
+                await admin.report_error("sitrep", str(e))
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Analyze any text with AI")
     async def analyze(self, ctx, text: str):
@@ -72,15 +86,26 @@ class AIBrain(commands.Cog):
                 max_tokens=800,
                 temperature=0.2
             )
-            embed = discord.Embed(title="🧠 INTELLIGENCE ANALYSIS", description=response.choices[0].message.content, color=0x7700ff, timestamp=datetime.now(timezone.utc))
-            embed.set_footer(text="VEGA OSINT • Verify with primary sources")
+            embed = discord.Embed(
+                title="🧠 INTELLIGENCE ANALYSIS",
+                description=response.choices[0].message.content,
+                color=0x7700ff,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text=f"VEGA OSINT • Requested by {ctx.author.display_name}")
             await ctx.respond(embed=embed)
+
+            # Also post to #ai-analysis
+            await self.post_to_channel(AI_ANALYSIS_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
                 admin.log(f"🧠 /analyze by {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+            admin = self.bot.cogs.get("VegaAdmin")
+            if admin:
+                await admin.report_error("analyze", str(e))
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Summarize latest news from the intelligence channel")
     async def summary(self, ctx, count: int = 10):
@@ -106,20 +131,31 @@ class AIBrain(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_SYSTEM},
-                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenerate an executive summary of these recent news items:\n\n" + "\n\n".join(messages)}
+                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\nGenerate an executive summary:\n\n" + "\n\n".join(messages)}
                 ],
                 max_tokens=800,
                 temperature=0.2
             )
-            embed = discord.Embed(title=f"📊 SUMMARY — Last {len(messages)} articles", description=response.choices[0].message.content, color=0x0088ff, timestamp=datetime.now(timezone.utc))
-            embed.set_footer(text=f"VEGA OSINT • {len(messages)} entries")
+            embed = discord.Embed(
+                title=f"📊 SUMMARY — Last {len(messages)} articles",
+                description=response.choices[0].message.content,
+                color=0x0088ff,
+                timestamp=datetime.now(timezone.utc)
+            )
+            embed.set_footer(text=f"VEGA OSINT • {len(messages)} entries • By {ctx.author.display_name}")
             await ctx.respond(embed=embed)
+
+            # Also post to #briefing-room
+            await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
                 admin.log(f"📊 /summary by {ctx.author.display_name}")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+            admin = self.bot.cogs.get("VegaAdmin")
+            if admin:
+                await admin.report_error("summary", str(e))
 
     @discord.slash_command(guild_ids=[GUILD_ID], description="Intelligence briefing for the last N hours by region")
     async def briefing(self, ctx, hours: discord.Option(int, description="Hours to look back (default: 8)", default=8)):
@@ -167,9 +203,17 @@ class AIBrain(commands.Cog):
             total = sum(len(e) for e in news_by_region.values())
 
             if len(content) <= 4000:
-                embed = discord.Embed(title=f"🌅 INTELLIGENCE BRIEFING — {now.strftime('%m/%d/%Y')}", description=content, color=0x0088ff, timestamp=now)
-                embed.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h")
+                embed = discord.Embed(
+                    title=f"🌅 INTELLIGENCE BRIEFING — {now.strftime('%m/%d/%Y')}",
+                    description=content,
+                    color=0x0088ff,
+                    timestamp=now
+                )
+                embed.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h • By {ctx.author.display_name}")
                 await ctx.respond(embed=embed)
+
+                # Also post to #briefing-room
+                await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
             else:
                 cut = content.rfind("\n\n", 0, len(content)//2)
                 embed1 = discord.Embed(title="🌅 INTELLIGENCE BRIEFING — Part 1", description=content[:cut], color=0x0088ff, timestamp=now)
@@ -179,11 +223,18 @@ class AIBrain(commands.Cog):
                 await ctx.respond(embed=embed1)
                 await ctx.followup.send(embed=embed2)
 
+                # Also post to #briefing-room
+                await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed1)
+                await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed2)
+
             admin = self.bot.cogs.get("VegaAdmin")
             if admin:
                 admin.log(f"🌅 /briefing by {ctx.author.display_name} — {total} events")
         except Exception as e:
             await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
+            admin = self.bot.cogs.get("VegaAdmin")
+            if admin:
+                await admin.report_error("briefing", str(e))
 
 def setup(bot):
     bot.add_cog(AIBrain(bot))
