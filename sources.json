@@ -75,14 +75,14 @@
       "url": "https://feeds.reuters.com/reuters/worldNews",
       "category": "conflict",
       "region": "Global",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "Associated Press",
       "url": "https://feeds.apnews.com/rss/apf-topnews",
       "category": "conflict",
       "region": "Global",
-      "enabled": true
+      "enabled": false
     },
     {
       "name": "Middle East Eye",
