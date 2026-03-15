@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timezone
-from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID
+from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID
 from utils.helpers import load_seen
 import os
 import json
@@ -17,37 +17,44 @@ class VegaAdmin(commands.Cog):
         self.status_message = None
         self.logs_message = None
         self.command_center_message = None
+        self.errors_message = None
         self.log_events = []
+        self.error_log = []
         self.recent_articles = []
         self.update_status.start()
         self.update_logs.start()
         self.update_command_center.start()
+        self.update_errors.start()
 
     def cog_unload(self):
         self.update_status.cancel()
         self.update_logs.cancel()
         self.update_command_center.cancel()
+        self.update_errors.cancel()
 
     def increment_cycle(self):
-        """Increment the cycle counter and update last scan time."""
         self.cycles_completed += 1
         self.last_scan = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     def log(self, event: str):
-        """Add an event to the live log."""
         time = datetime.now(timezone.utc).strftime("%H:%M:%S")
         self.log_events.append(f"`{time}` {event}")
         if len(self.log_events) > 20:
             self.log_events.pop(0)
 
     def log_article(self, article: dict):
-        """Register a new article for the command center display."""
         self.recent_articles.insert(0, article)
         if len(self.recent_articles) > 8:
             self.recent_articles.pop()
 
+    async def report_error(self, source: str, error: str):
+        """Log error to live panel."""
+        time = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        self.error_log.insert(0, f"`{time}` **{source}** — {error[:100]}")
+        if len(self.error_log) > 10:
+            self.error_log.pop()
+
     def build_status_embed(self):
-        """Build the live status panel embed."""
         now = datetime.now(timezone.utc)
         uptime = now - self.start_time
         hours, remainder = divmod(int(uptime.total_seconds()), 3600)
@@ -74,7 +81,6 @@ class VegaAdmin(commands.Cog):
         return embed
 
     def build_logs_embed(self):
-        """Build the live activity log embed."""
         now = datetime.now(timezone.utc)
         events = "\n".join(self.log_events) if self.log_events else "`No activity recorded`"
         embed = discord.Embed(
@@ -86,8 +92,19 @@ class VegaAdmin(commands.Cog):
         embed.set_footer(text="VEGA OSINT • Last 20 events — Updated every 10 seconds")
         return embed
 
+    def build_errors_embed(self):
+        now = datetime.now(timezone.utc)
+        errors = "\n".join(self.error_log) if self.error_log else "`No errors recorded ✅`"
+        embed = discord.Embed(
+            title="❌ VEGA — ERROR MONITOR",
+            description=errors,
+            color=0xff0000 if self.error_log else 0x00ff41,
+            timestamp=now
+        )
+        embed.set_footer(text="VEGA OSINT • Last 10 errors — Updated every 30 seconds")
+        return embed
+
     def build_command_center_embed(self):
-        """Build the live global situation command center embed."""
         now = datetime.now(timezone.utc)
 
         active_regions = {}
@@ -175,6 +192,23 @@ class VegaAdmin(commands.Cog):
             print(f"[VEGA] Logs update error: {e}")
 
     @tasks.loop(seconds=30)
+    async def update_errors(self):
+        channel = self.bot.get_channel(VEGA_ERRORS_CHANNEL_ID)
+        if not channel:
+            return
+        embed = self.build_errors_embed()
+        try:
+            if self.errors_message:
+                await self.errors_message.edit(embed=embed)
+            else:
+                await channel.purge(limit=10)
+                self.errors_message = await channel.send(embed=embed)
+        except discord.NotFound:
+            self.errors_message = await channel.send(embed=embed)
+        except Exception as e:
+            print(f"[VEGA] Error monitor update error: {e}")
+
+    @tasks.loop(seconds=30)
     async def update_command_center(self):
         channel = self.bot.get_channel(COMMAND_CENTER_ID)
         if not channel:
@@ -197,6 +231,10 @@ class VegaAdmin(commands.Cog):
 
     @update_logs.before_loop
     async def before_logs(self):
+        await self.bot.wait_until_ready()
+
+    @update_errors.before_loop
+    async def before_errors(self):
         await self.bot.wait_until_ready()
 
     @update_command_center.before_loop
@@ -264,7 +302,7 @@ class VegaAdmin(commands.Cog):
     @discord.slash_command(guild_ids=[GUILD_ID], description="Purge all messages from a channel")
     async def purge(self, ctx, channel: discord.Option(discord.TextChannel, description="Channel to clear")):
         await ctx.defer()
-        protected = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID]
+        protected = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID]
         if channel.id in protected:
             await ctx.respond("⚠️ **VEGA** — That channel is protected.")
             return
