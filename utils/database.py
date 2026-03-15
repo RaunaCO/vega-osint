@@ -63,6 +63,16 @@ def initialize_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS source_health (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            success INTEGER,
+            error TEXT,
+            checked_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
     print("[VEGA] Database initialized.")
@@ -159,6 +169,39 @@ def save_sitrep(topic: str, content: str, sources: int, author: str):
     )
     conn.commit()
     conn.close()
+
+def save_source_status(name: str, success: bool, error: str = ""):
+    """Track source health after each scan."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO source_health (name, success, error) VALUES (?, ?, ?)",
+        (name, 1 if success else 0, error)
+    )
+    conn.commit()
+    conn.close()
+
+def get_source_health(limit: int = 100):
+    """Get recent source health records."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT name,
+                   SUM(success) as successes,
+                   COUNT(*) as total,
+                   MAX(checked_at) as last_checked
+            FROM source_health
+            GROUP BY name
+            ORDER BY last_checked DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except:
+        conn.close()
+        return []
 
 def get_stats():
     """Get system-wide statistics."""

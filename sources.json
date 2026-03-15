@@ -1,0 +1,214 @@
+{
+  "sources": [
+    {
+      "name": "BBC World",
+      "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Al Jazeera",
+      "url": "https://www.aljazeera.com/xml/rss/all.xml",
+      "category": "conflict",
+      "region": "Middle East",
+      "enabled": true
+    },
+    {
+      "name": "DW World",
+      "url": "https://rss.dw.com/rdf/rss-en-world",
+      "category": "conflict",
+      "region": "Europe",
+      "enabled": true
+    },
+    {
+      "name": "Kyiv Independent",
+      "url": "https://kyivindependent.com/feed/",
+      "category": "conflict",
+      "region": "Europe",
+      "enabled": true
+    },
+    {
+      "name": "The War Zone",
+      "url": "https://www.thedrive.com/the-war-zone/rss",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Foreign Policy",
+      "url": "https://foreignpolicy.com/feed/",
+      "category": "geopolitics",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Military Times",
+      "url": "https://www.militarytimes.com/arc/outboundfeeds/rss/",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Defense News",
+      "url": "https://www.defensenews.com/arc/outboundfeeds/rss/",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "France 24",
+      "url": "https://www.france24.com/en/rss",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "The Guardian World",
+      "url": "https://www.theguardian.com/world/rss",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Reuters World",
+      "url": "https://feeds.reuters.com/reuters/worldNews",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Associated Press",
+      "url": "https://feeds.apnews.com/rss/apf-topnews",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Middle East Eye",
+      "url": "https://www.middleeasteye.net/rss",
+      "category": "conflict",
+      "region": "Middle East",
+      "enabled": true
+    },
+    {
+      "name": "Jerusalem Post",
+      "url": "https://www.jpost.com/rss/rssfeedsFrontPage.aspx",
+      "category": "conflict",
+      "region": "Middle East",
+      "enabled": true
+    },
+    {
+      "name": "Times of India",
+      "url": "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms",
+      "category": "conflict",
+      "region": "Asia",
+      "enabled": true
+    },
+    {
+      "name": "South China Morning Post",
+      "url": "https://www.scmp.com/rss/91/feed",
+      "category": "geopolitics",
+      "region": "Asia",
+      "enabled": true
+    },
+    {
+      "name": "Africa News",
+      "url": "https://www.africanews.com/feed/",
+      "category": "conflict",
+      "region": "Africa",
+      "enabled": true
+    },
+    {
+      "name": "AllAfrica",
+      "url": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf",
+      "category": "conflict",
+      "region": "Africa",
+      "enabled": true
+    },
+    {
+      "name": "ACLED",
+      "url": "https://acleddata.com/feed/",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Council on Foreign Relations",
+      "url": "https://www.cfr.org/rss.xml",
+      "category": "geopolitics",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Brookings",
+      "url": "https://www.brookings.edu/feed/",
+      "category": "geopolitics",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "War on the Rocks",
+      "url": "https://warontherocks.com/feed/",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "IISS",
+      "url": "https://www.iiss.org/rss",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "UN News",
+      "url": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+      "category": "government",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "NATO News",
+      "url": "https://www.nato.int/cps/en/natolive/news.rss",
+      "category": "government",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "US State Department",
+      "url": "https://www.state.gov/rss-feeds/press-releases/",
+      "category": "government",
+      "region": "Americas",
+      "enabled": true
+    },
+    {
+      "name": "Financial Times World",
+      "url": "https://www.ft.com/world?format=rss",
+      "category": "financial",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Bloomberg Politics",
+      "url": "https://feeds.bloomberg.com/politics/news.rss",
+      "category": "financial",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Bellingcat",
+      "url": "https://www.bellingcat.com/feed/",
+      "category": "military",
+      "region": "Global",
+      "enabled": true
+    },
+    {
+      "name": "Stimson Center",
+      "url": "https://www.stimson.org/feed/",
+      "category": "geopolitics",
+      "region": "Global",
+      "enabled": true
+    }
+  ]
+}

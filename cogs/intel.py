@@ -1,6 +1,7 @@
 import discord
 import feedparser
 import json
+import json as json_lib
 import asyncio
 from discord.ext import commands, tasks
 import aiohttp
@@ -8,13 +9,23 @@ from datetime import datetime
 from groq import Groq
 from config.settings import (
     GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
-    NEWS_FEEDS, KEYWORDS, CRITICAL_KEYWORDS,
+    KEYWORDS, CRITICAL_KEYWORDS,
     GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
 )
 from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate, extract_image
-from utils.database import save_article
+from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
+
+def load_sources() -> dict:
+    """Load enabled sources from sources.json."""
+    try:
+        with open("sources.json", "r") as f:
+            sources = json_lib.load(f)["sources"]
+        return {s["name"]: s["url"] for s in sources if s["enabled"]}
+    except Exception as e:
+        print(f"[VEGA] Error loading sources: {e}")
+        return {}
 
 def color_by_level(level: str) -> int:
     return {"CRITICAL": 0xff0000, "HIGH": 0xff6600, "MEDIUM": 0xffaa00, "LOW": 0xffff00}.get(level, 0xff8800)
@@ -173,12 +184,17 @@ class Intel(commands.Cog):
             return
 
         new_articles = []
+        news_feeds = load_sources()
+
+        if admin:
+            admin.log(f"📚 Loaded {len(news_feeds)} sources")
 
         async with aiohttp.ClientSession() as session:
-            for source, url in NEWS_FEEDS.items():
+            for source, url in news_feeds.items():
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                         feed = feedparser.parse(await resp.text())
+                        source_hits = 0
                         for entry in feed.entries[:2]:
                             title = entry.get("title", "")
                             link = entry.get("link", "")
@@ -205,6 +221,7 @@ class Intel(commands.Cog):
                                     "image": image,
                                     "translated": was_translated
                                 })
+                                source_hits += 1
 
                                 if admin:
                                     admin.log(f"🟠 [{source}] {title_en[:45]}...")
@@ -215,8 +232,11 @@ class Intel(commands.Cog):
                                         "time": datetime.utcnow().strftime("%H:%M")
                                     })
 
+                        save_source_status(source, True)
+
                 except Exception as e:
                     print(f"[VEGA] Feed error {source}: {e}")
+                    save_source_status(source, False, str(e)[:200])
                     if admin:
                         admin.log(f"⚠️ Feed error {source}: {str(e)[:40]}")
 
