@@ -1,163 +1,214 @@
 <div align="center">
 
-# 🛰️ VEGA OSINT
-### Protocolo de Inteligencia Sintética
+<img src="https://img.shields.io/badge/VEGA-OSINT-red?style=for-the-badge&labelColor=000000" alt="VEGA OSINT"/>
 
-**Plataforma de inteligencia geopolítica en tiempo real impulsada por IA**
+# VEGA OSINT
+### Open-Source Synthetic Intelligence Platform
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)](https://python.org)
-[![Discord](https://img.shields.io/badge/Discord-py--cord-5865F2?style=flat-square&logo=discord)](https://pycord.dev)
-[![Groq](https://img.shields.io/badge/AI-Groq%20LLaMA-orange?style=flat-square)](https://groq.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+**Real-time geopolitical intelligence powered by AI — built for analysts, researchers, and anyone who needs to stay ahead.**
+
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![Discord](https://img.shields.io/badge/Discord-py--cord-5865F2?style=flat-square&logo=discord&logoColor=white)](https://pycord.dev)
+[![Groq](https://img.shields.io/badge/AI-Groq%20LLaMA%203.3-F55036?style=flat-square)](https://groq.com)
+[![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
+[![License](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active-22C55E?style=flat-square)]()
+
+[Features](#features) • [Quick Start](#quick-start) • [Commands](#commands) • [Architecture](#architecture) • [Roadmap](#roadmap) • [Contributing](#contributing)
 
 </div>
 
 ---
 
-## ¿Qué es Vega?
+## What is VEGA?
 
-Vega es una plataforma de inteligencia de fuentes abiertas (OSINT) que combina monitoreo automatizado de noticias, análisis con inteligencia artificial y herramientas de reconocimiento digital, todo accesible desde Discord.
+VEGA is an open-source intelligence platform that monitors global conflicts in real time, classifies threats using AI, and delivers structured intelligence reports directly to Discord.
 
-No es un bot de noticias. Es un sistema de inteligencia sintética que clasifica, analiza y sintetiza información de conflictos globales en tiempo real.
+It's not a news bot. It's a **synthetic intelligence protocol** — monitoring 10+ sources simultaneously, classifying every article by threat level and region, generating military-grade SITREPs, and maintaining a persistent intelligence database.
 
----
-
-## Capacidades
-
-| Módulo | Descripción |
-|--------|-------------|
-| 🔴 **Intel** | Monitoreo de 10+ fuentes de noticias con clasificación automática por IA |
-| 🧠 **AI Brain** | Generación de SITREPs, briefings y análisis geopolíticos con LLaMA 3.3 |
-| 🔍 **OSINT** | Reconocimiento de usuarios en múltiples plataformas |
-| ⚙️ **Admin** | Panel de control en vivo, logs y gestión del sistema |
+Think of it as a lightweight, self-hosted alternative to commercial threat intelligence platforms — completely free and open source.
 
 ---
 
-## Comandos
+## Features
 
-### Inteligencia
-| Comando | Descripción |
-|---------|-------------|
-| `/scanfeed` | Escanea todas las fuentes ahora mismo |
-| `/sitrep [tema]` | Genera un informe de situación basado en noticias reales |
-| `/briefing [horas]` | Resumen cronológico por región de las últimas N horas |
-| `/resumen [cantidad]` | Resume las últimas noticias del canal |
-| `/analizar [texto]` | Análisis geopolítico de cualquier texto con IA |
+### 🔴 Real-Time Intelligence Feed
+- Monitors 10+ verified sources (BBC, Al Jazeera, Foreign Policy, The War Zone, and more)
+- AI-powered classification by threat level: `CRITICAL` `HIGH` `MEDIUM` `LOW`
+- Automatic routing to regional channels (Middle East, Europe, Africa, Asia, Americas)
+- Critical alerts with `@everyone` mentions for maximum-priority events
+- Automatic translation to English for non-English sources
 
-### OSINT
-| Comando | Descripción |
-|---------|-------------|
-| `/userrecon [usuario]` | Busca un nombre de usuario en múltiples redes sociales |
+### 🧠 AI-Powered Analysis
+- **SITREPs** — Structured situation reports based on real news, not hallucinations
+- **Intelligence Briefings** — Chronological regional summaries for any time window
+- **Text Analysis** — Geopolitical analysis of any text, URL or raw intelligence
+- **Executive Summaries** — Quick synthesis of the latest intelligence feed
+- Powered by **LLaMA 3.3 70B** via Groq (free tier)
 
-### Administración
-| Comando | Descripción |
-|---------|-------------|
-| `/estado` | Panel de estado del sistema |
-| `/modulos` | Lista de módulos activos |
-| `/pausar [accion]` | Pausa o reanuda el monitor automático |
-| `/intervalo [minutos]` | Cambia la frecuencia de escaneo |
-| `/limpiar` | Resetea la memoria de noticias vistas |
-| `/purgar [canal]` | Elimina todos los mensajes de un canal |
-| `/ping` | Verificación de estado |
+### 🔍 OSINT Tools
+- Username reconnaissance across GitHub, Instagram, TikTok, Twitter/X, Reddit, Pinterest
+- Results automatically archived to `#osint-hits`
+- Extensible — new platforms can be added in minutes
 
----
-
-## Arquitectura
-```
-vega-osint/
-├── main.py                 # Punto de entrada — carga módulos desde modules.json
-├── modules.json            # Configuración de módulos activos
-├── config/
-│   └── settings.py         # Variables de entorno y prompts de IA
-├── cogs/                   # Módulos del bot
-│   ├── intel.py            # Monitor de noticias y clasificación IA
-│   ├── ai_brain.py         # SITREPs, briefings y análisis
-│   ├── osint.py            # Herramientas de reconocimiento
-│   └── admin.py            # Panel de control
-├── utils/
-│   ├── helpers.py          # Funciones reutilizables
-│   └── database.py         # Capa de base de datos SQLite
-└── data/
-    └── vega.db             # Base de datos persistente
-```
+### ⚙️ System Administration
+- **3 live panels** — Status, Activity Log, and Global Situation updated in real time
+- Module system — enable/disable capabilities without touching code
+- Persistent SQLite database — all intelligence survives restarts
+- Hot-reload interval — change scan frequency without restarting
 
 ---
 
-## Instalación
+## Quick Start
 
-### Requisitos
+### Prerequisites
 - Python 3.8+
-- Cuenta de Discord + Bot Token
-- Cuenta de Groq (gratuita)
+- A Discord account + Bot Token ([guide](https://discord.com/developers/applications))
+- A free Groq API key ([console.groq.com](https://console.groq.com))
 
-### Pasos
-
-**1. Clonar el repositorio**
+### Installation
 ```bash
+# Clone the repository
 git clone https://github.com/RaunaCO/vega-osint.git
 cd vega-osint
-```
 
-**2. Crear entorno virtual**
-```bash
+# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
-```
 
-**3. Instalar dependencias**
-```bash
+# Install dependencies
 pip install py-cord python-dotenv aiohttp feedparser groq deep-translator langdetect
-```
 
-**4. Configurar variables de entorno**
-```bash
+# Configure environment
 cp .env.example .env
-# Edita .env con tus credenciales
+# Edit .env with your credentials
 ```
 
-**5. Configurar el servidor de Discord**
+### Discord Server Setup
 
-Crea las siguientes categorías y canales:
+Create the following structure in your server:
 ```
-⫸ VEGA SYSTEM
-  #vega-status
-  #vega-logs
-  #command-center
+📁 VEGA SYSTEM
+  #vega-status        ← Live system status panel
+  #vega-logs          ← Real-time activity log
+  #command-center     ← Global situation + commands
 
-⫸ INTEL FEED
-  #conflict-watch
-  #critical-alerts
-  #region-medio-oriente
-  #region-europa
+📁 INTEL FEED
+  #conflict-watch     ← Live cycle reports
+  #critical-alerts    ← Maximum priority alerts
+  #region-middle-east
+  #region-europe
   #region-africa
   #region-asia
   #region-americas
 
-⫸ OPERATIONS
-  #sitrep-request
-  #recon-tasks
-
-⫸ ARCHIVE
-  #mission-logs
-  #osint-hits
-  #evidence-vault
+📁 ARCHIVE
+  #mission-logs       ← SITREP history
+  #osint-hits         ← Recon results
 ```
 
-**6. Iniciar Vega**
+### Start VEGA
 ```bash
 python main.py
 ```
 
 ---
 
-## Variables de entorno
+## Commands
 
-Crea un archivo `.env` basado en este template:
+### Intelligence
+| Command | Description |
+|---------|-------------|
+| `/scanfeed` | Trigger an immediate scan of all sources |
+| `/sitrep [topic]` | Generate a SITREP from real-time news |
+| `/briefing [hours]` | Regional intelligence briefing for the last N hours |
+| `/summary [count]` | Executive summary of the latest feed entries |
+| `/analyze [text]` | AI geopolitical analysis of any text |
+
+### OSINT
+| Command | Description |
+|---------|-------------|
+| `/userrecon [username]` | Search for a username across 6 major platforms |
+
+### Administration
+| Command | Description |
+|---------|-------------|
+| `/status` | Display current system status |
+| `/modules` | List all active modules |
+| `/pause [pause\|resume]` | Control the automatic monitor |
+| `/interval [minutes]` | Change scan frequency (no restart required) |
+| `/clear` | Reset article memory |
+| `/purge [channel]` | Delete all messages from a channel |
+| `/ping` | Verify bot is operational |
+
+---
+
+## Architecture
+```
+vega-osint/
+├── main.py                 # Entry point — loads modules from modules.json
+├── modules.json            # Module configuration — enable/disable without code changes
+├── .env.example            # Environment variable template
+├── config/
+│   └── settings.py         # All configuration, constants and AI prompts
+├── cogs/                   # Bot modules (Cogs)
+│   ├── intel.py            # News monitoring, AI classification, cycle reports
+│   ├── ai_brain.py         # SITREPs, briefings, analysis
+│   ├── osint.py            # Username reconnaissance
+│   └── admin.py            # Live panels, system control
+├── utils/
+│   ├── helpers.py          # Shared utilities — translation, parsing, feed fetching
+│   └── database.py         # SQLite data layer
+└── data/
+    └── vega.db             # Persistent intelligence database
+```
+
+### Module System
+
+VEGA uses a plugin architecture. To disable a module without deleting code, simply edit `modules.json`:
+```json
+{
+  "modules": {
+    "intel": { "enabled": false }
+  }
+}
+```
+
+To add a new module:
+1. Create `cogs/your_module.py` with a `Cog` class and `setup(bot)` function
+2. Add it to `modules.json`
+3. Restart VEGA
+
+---
+
+## Intelligence Sources
+
+| Source | Focus |
+|--------|-------|
+| BBC World | Global news |
+| Al Jazeera | Middle East, Global |
+| DW World | Europe, Global |
+| Kyiv Independent | Ukraine, Eastern Europe |
+| The War Zone | Military, Defense |
+| Foreign Policy | Geopolitics, Diplomacy |
+| Military Times | US Military |
+| Defense News | Defense Industry |
+| France 24 | Global, Francophone regions |
+| The Guardian | Global, Investigative |
+
+---
+
+## Environment Variables
 ```env
+# Discord
 DISCORD_TOKEN=
 GUILD_ID=
+
+# AI
 GROQ_API_KEY=
+
+# Channels
 CONFLICT_CHANNEL_ID=
 STATUS_CHANNEL_ID=
 LOGS_CHANNEL_ID=
@@ -165,6 +216,8 @@ CRITICAL_CHANNEL_ID=
 COMMAND_CENTER_ID=
 OSINT_HITS_CHANNEL_ID=
 MISSION_LOGS_CHANNEL_ID=
+
+# Regional Channels
 REGION_MEDIO_ORIENTE_ID=
 REGION_EUROPA_ID=
 REGION_AFRICA_ID=
@@ -174,72 +227,54 @@ REGION_AMERICAS_ID=
 
 ---
 
-## Sistema de módulos
-
-Vega usa un sistema de plugins basado en `modules.json`. Para desactivar un módulo sin borrar código:
-```json
-{
-  "modules": {
-    "intel": {
-      "enabled": false
-    }
-  }
-}
-```
-
----
-
-## Fuentes de inteligencia
-
-Vega monitorea automáticamente:
-
-- BBC World News
-- Al Jazeera
-- DW World
-- Kyiv Independent
-- The War Zone
-- Foreign Policy
-- Military Times
-- Defense News
-- France 24
-- The Guardian
-
----
-
 ## Roadmap
 
-- [ ] Interfaz web propia
-- [ ] API REST para terceros
-- [ ] Módulo naval (seguimiento de embarcaciones)
-- [ ] Módulo aéreo (seguimiento de aeronaves)
-- [ ] Módulo ciberseguridad
-- [ ] Soporte multi-servidor
-- [ ] Dashboard de estadísticas
-- [ ] Soporte para múltiples modelos de IA
+### v2.0
+- [ ] Web dashboard (React + FastAPI)
+- [ ] REST API for third-party integrations
+- [ ] Multi-server support
+
+### v2.5
+- [ ] Naval module — vessel tracking via AIS
+- [ ] Aviation module — aircraft tracking
+- [ ] Cyber module — threat intelligence feeds
+
+### v3.0
+- [ ] Multiple AI model support (Gemini, Claude, GPT-4)
+- [ ] Custom source configuration via Discord
+- [ ] Public API with authentication
 
 ---
 
-## Contribuir
+## Contributing
 
-Las contribuciones son bienvenidas. Para agregar un nuevo módulo:
+Contributions are welcome. Please read the guidelines before opening a PR.
 
-1. Crea `cogs/tu_modulo.py` con una clase `Cog` y función `setup(bot)`
-2. Agrégalo a `modules.json`
-3. Documenta los comandos en este README
-4. Abre un Pull Request
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Commit using Conventional Commits: `feat(module): description`
+4. Push and open a Pull Request
+
+**Adding a new intelligence source:**
+Simply add it to `NEWS_FEEDS` in `config/settings.py` — no other changes needed.
+
+**Adding a new module:**
+Create `cogs/your_module.py`, add it to `modules.json`, document commands in this README.
 
 ---
 
-## Licencia
+## License
 
-MIT License — libre para usar, modificar y distribuir.
+MIT License — free to use, modify and distribute.
 
 ---
 
 <div align="center">
 
-**Construido con Python, py-cord, Groq LLaMA 3.3 y código abierto**
+Built with Python, py-cord, Groq LLaMA 3.3, and open-source tools
 
-*Vega OSINT — Inteligencia para todos*
+**VEGA OSINT — Intelligence for everyone**
+
+⭐ Star this repo if you find it useful
 
 </div>
