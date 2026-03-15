@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/VEGA-OSINT-red?style=for-the-badge&labelColor=000000" alt="VEGA OSINT"/>
+<img src="https://img.shields.io/badge/ASTRAL-NETWORK-red?style=for-the-badge&labelColor=000000" alt="Astral Network"/>
 
 # VEGA OSINT
 ### Open-Source Synthetic Intelligence Platform
@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active-22C55E?style=flat-square)]()
 
-[Features](#features) • [Quick Start](#quick-start) • [Commands](#commands) • [Architecture](#architecture) • [Roadmap](#roadmap) • [Contributing](#contributing)
+[Features](#features) • [Quick Start](#quick-start) • [Commands](#commands) • [Architecture](#architecture) • [Sources](#intelligence-sources) • [Roadmap](#roadmap) • [Contributing](#contributing)
 
 </div>
 
@@ -22,38 +22,40 @@
 
 ## What is VEGA?
 
-VEGA is an open-source intelligence platform that monitors global conflicts in real time, classifies threats using AI, and delivers structured intelligence reports directly to Discord.
+VEGA is the intelligence engine powering **Astral Network** — an open-source platform for real-time geopolitical monitoring, conflict analysis, and OSINT research.
 
-It's not a news bot. It's a **synthetic intelligence protocol** — monitoring 10+ sources simultaneously, classifying every article by threat level and region, generating military-grade SITREPs, and maintaining a persistent intelligence database.
+It monitors 30+ verified intelligence sources simultaneously, classifies every article by threat level and region using AI, generates military-grade SITREPs, and maintains a persistent intelligence database — all accessible through Discord.
 
-Think of it as a lightweight, self-hosted alternative to commercial threat intelligence platforms — completely free and open source.
+Think of it as a lightweight, self-hosted alternative to commercial threat intelligence platforms like Palantir — completely free and open source.
 
 ---
 
 ## Features
 
 ### 🔴 Real-Time Intelligence Feed
-- Monitors 10+ verified sources (BBC, Al Jazeera, Foreign Policy, The War Zone, and more)
-- AI-powered classification by threat level: `CRITICAL` `HIGH` `MEDIUM` `LOW`
-- Automatic routing to regional channels (Middle East, Europe, Africa, Asia, Americas)
-- Critical alerts with `@everyone` mentions for maximum-priority events
+- Monitors **30+ verified sources** across 5 categories
+- AI-powered classification: `CRITICAL` `HIGH` `MEDIUM` `LOW`
+- Automatic routing to regional channels
+- Critical alerts with `@everyone` for maximum-priority events
 - Automatic translation to English for non-English sources
+- Source health tracking — knows which feeds are up or down
 
 ### 🧠 AI-Powered Analysis
-- **SITREPs** — Structured situation reports based on real news, not hallucinations
-- **Intelligence Briefings** — Chronological regional summaries for any time window
-- **Text Analysis** — Geopolitical analysis of any text, URL or raw intelligence
-- **Executive Summaries** — Quick synthesis of the latest intelligence feed
+- **SITREPs** — Structured situation reports based on real news
+- **Intelligence Briefings** — Chronological regional summaries
+- **Text Analysis** — Geopolitical analysis of any text
+- **Executive Summaries** — Quick synthesis of the latest feed
 - Powered by **LLaMA 3.3 70B** via Groq (free tier)
 
 ### 🔍 OSINT Tools
-- Username reconnaissance across GitHub, Instagram, TikTok, Twitter/X, Reddit, Pinterest
-- Results automatically archived to `#osint-hits`
+- Username reconnaissance across 6 major platforms
+- Results automatically archived to `#osint-lab`
 - Extensible — new platforms can be added in minutes
 
 ### ⚙️ System Administration
-- **3 live panels** — Status, Activity Log, and Global Situation updated in real time
+- **4 live panels** — Status, Activity Log, Error Monitor, Global Situation
 - Module system — enable/disable capabilities without touching code
+- Source system — manage 30+ feeds via `sources.json`
 - Persistent SQLite database — all intelligence survives restarts
 - Hot-reload interval — change scan frequency without restarting
 
@@ -86,26 +88,33 @@ cp .env.example .env
 ```
 
 ### Discord Server Setup
-
-Create the following structure in your server:
 ```
-📁 VEGA SYSTEM
-  #vega-status        ← Live system status panel
-  #vega-logs          ← Real-time activity log
-  #command-center     ← Global situation + commands
+📋 INFORMATION
+  #rules · #announcements · #changelog · #events
 
-📁 INTEL FEED
-  #conflict-watch     ← Live cycle reports
-  #critical-alerts    ← Maximum priority alerts
-  #region-middle-east
-  #region-europe
-  #region-africa
-  #region-asia
-  #region-americas
+🔔 DISCORD SYSTEM
+  #community-updates · #safety-notifications · #mod-log
 
-📁 ARCHIVE
-  #mission-logs       ← SITREP history
-  #osint-hits         ← Recon results
+💬 COMMUNITY
+  #general · #memes
+
+📡 GLOBAL INTEL
+  #conflict-watch · #critical-alerts
+
+🌍 REGIONAL (one per region)
+  #[region]-feed · #[region]-discussion
+
+🔍 OPERATIONS
+  #command-center · #sitrep-request · #analysis-board · #osint-lab
+
+🧠 AI LAB
+  #ai-analysis · #briefing-room · #mission-logs · #evidence-vault
+
+🛠️ DEVELOPMENT
+  #dev-general · #dev-contributions · #dev-ideas
+
+⚙️ SYSTEM (admin only)
+  #vega-status · #vega-logs · #vega-errors
 ```
 
 ### Start VEGA
@@ -118,18 +127,18 @@ python main.py
 ## Commands
 
 ### Intelligence
-| Command | Description |
-|---------|-------------|
-| `/scanfeed` | Trigger an immediate scan of all sources |
-| `/sitrep [topic]` | Generate a SITREP from real-time news |
-| `/briefing [hours]` | Regional intelligence briefing for the last N hours |
-| `/summary [count]` | Executive summary of the latest feed entries |
-| `/analyze [text]` | AI geopolitical analysis of any text |
+| Command | Description | Posts to |
+|---------|-------------|----------|
+| `/scanfeed` | Trigger an immediate scan of all sources | Regional feeds |
+| `/sitrep [topic]` | Generate a SITREP from real-time news | Response + `#mission-logs` |
+| `/briefing [hours]` | Regional intelligence briefing | Response + `#briefing-room` |
+| `/summary [count]` | Executive summary of the latest feed | Response + `#briefing-room` |
+| `/analyze [text]` | AI geopolitical analysis of any text | Response + `#ai-analysis` |
 
 ### OSINT
-| Command | Description |
-|---------|-------------|
-| `/userrecon [username]` | Search for a username across 6 major platforms |
+| Command | Description | Posts to |
+|---------|-------------|----------|
+| `/userrecon [username]` | Search username across 6 platforms | Response + `#osint-lab` |
 
 ### Administration
 | Command | Description |
@@ -148,67 +157,76 @@ python main.py
 ```
 vega-osint/
 ├── main.py                 # Entry point — loads modules from modules.json
-├── modules.json            # Module configuration — enable/disable without code changes
+├── modules.json            # Module configuration
+├── sources.json            # Intelligence source definitions (30+ sources)
 ├── .env.example            # Environment variable template
 ├── config/
 │   └── settings.py         # All configuration, constants and AI prompts
-├── cogs/                   # Bot modules (Cogs)
+├── cogs/                   # Bot modules
 │   ├── intel.py            # News monitoring, AI classification, cycle reports
 │   ├── ai_brain.py         # SITREPs, briefings, analysis
 │   ├── osint.py            # Username reconnaissance
 │   └── admin.py            # Live panels, system control
 ├── utils/
-│   ├── helpers.py          # Shared utilities — translation, parsing, feed fetching
+│   ├── helpers.py          # Shared utilities
 │   └── database.py         # SQLite data layer
 └── data/
     └── vega.db             # Persistent intelligence database
 ```
 
 ### Module System
-
-VEGA uses a plugin architecture. To disable a module without deleting code, simply edit `modules.json`:
 ```json
 {
   "modules": {
-    "intel": { "enabled": false }
+    "intel": { "enabled": true }
   }
 }
 ```
 
-To add a new module:
-1. Create `cogs/your_module.py` with a `Cog` class and `setup(bot)` function
-2. Add it to `modules.json`
-3. Restart VEGA
+### Source System
+```json
+{
+  "sources": [
+    {
+      "name": "BBC World",
+      "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+      "category": "conflict",
+      "region": "Global",
+      "enabled": true
+    }
+  ]
+}
+```
+
+To add a new source just add an entry to `sources.json` — no code changes needed.
 
 ---
 
 ## Intelligence Sources
 
-| Source | Focus |
-|--------|-------|
-| BBC World | Global news |
-| Al Jazeera | Middle East, Global |
-| DW World | Europe, Global |
-| Kyiv Independent | Ukraine, Eastern Europe |
-| The War Zone | Military, Defense |
-| Foreign Policy | Geopolitics, Diplomacy |
-| Military Times | US Military |
-| Defense News | Defense Industry |
-| France 24 | Global, Francophone regions |
-| The Guardian | Global, Investigative |
+### Conflict & War News
+BBC World, Al Jazeera, DW World, Kyiv Independent, France 24, The Guardian, Middle East Eye, Jerusalem Post, Africa News, AllAfrica, ACLED
+
+### Military & Defense
+The War Zone, Military Times, Defense News, War on the Rocks, IISS, Bellingcat
+
+### Geopolitics & Diplomacy
+Foreign Policy, Council on Foreign Relations, Brookings, South China Morning Post, Stimson Center
+
+### Government & Official
+UN News, NATO News, US State Department
+
+### Financial & Economic Intelligence
+Financial Times, Bloomberg Politics
 
 ---
 
 ## Environment Variables
 ```env
-# Discord
 DISCORD_TOKEN=
 GUILD_ID=
-
-# AI
 GROQ_API_KEY=
 
-# Channels
 CONFLICT_CHANNEL_ID=
 STATUS_CHANNEL_ID=
 LOGS_CHANNEL_ID=
@@ -216,8 +234,11 @@ CRITICAL_CHANNEL_ID=
 COMMAND_CENTER_ID=
 OSINT_HITS_CHANNEL_ID=
 MISSION_LOGS_CHANNEL_ID=
+VEGA_ERRORS_CHANNEL_ID=
+AI_ANALYSIS_CHANNEL_ID=
+BRIEFING_ROOM_CHANNEL_ID=
+EVIDENCE_VAULT_CHANNEL_ID=
 
-# Regional Channels
 REGION_MEDIO_ORIENTE_ID=
 REGION_EUROPA_ID=
 REGION_AFRICA_ID=
@@ -229,26 +250,26 @@ REGION_AMERICAS_ID=
 
 ## Roadmap
 
-### v2.0
-- [ ] Web dashboard (React + FastAPI)
+### v2.0 — Web Platform
+- [ ] Web dashboard (FastAPI + React)
 - [ ] REST API for third-party integrations
 - [ ] Multi-server support
 
-### v2.5
+### v2.5 — Expanded Intelligence
 - [ ] Naval module — vessel tracking via AIS
 - [ ] Aviation module — aircraft tracking
 - [ ] Cyber module — threat intelligence feeds
+- [ ] Evidence Vault — file metadata analysis
 
-### v3.0
-- [ ] Multiple AI model support (Gemini, Claude, GPT-4)
+### v3.0 — Platform
+- [ ] Multiple AI model support
 - [ ] Custom source configuration via Discord
 - [ ] Public API with authentication
+- [ ] User accounts and saved searches
 
 ---
 
 ## Contributing
-
-Contributions are welcome. Please read the guidelines before opening a PR.
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/your-feature`
@@ -256,10 +277,10 @@ Contributions are welcome. Please read the guidelines before opening a PR.
 4. Push and open a Pull Request
 
 **Adding a new intelligence source:**
-Simply add it to `NEWS_FEEDS` in `config/settings.py` — no other changes needed.
+Add an entry to `sources.json` — no code changes needed.
 
 **Adding a new module:**
-Create `cogs/your_module.py`, add it to `modules.json`, document commands in this README.
+Create `cogs/your_module.py`, add it to `modules.json`, document commands here.
 
 ---
 
@@ -273,7 +294,7 @@ MIT License — free to use, modify and distribute.
 
 Built with Python, py-cord, Groq LLaMA 3.3, and open-source tools
 
-**VEGA OSINT — Intelligence for everyone**
+**Astral Network — VEGA OSINT — Intelligence for everyone**
 
 ⭐ Star this repo if you find it useful
 
