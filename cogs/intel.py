@@ -7,7 +7,6 @@ from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
 from groq import Groq, RateLimitError
-import google.generativeai as genai
 from config.settings import (
     CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
     KEYWORDS, CRITICAL_KEYWORDS, GROQ_API_KEY, GROQ_MODEL,
@@ -18,8 +17,8 @@ from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate
 from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
-client_gemini = genai.GenerativeModel(GEMINI_MODEL)
+
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent
 
 # Max consecutive failures before a source is auto-disabled in sources.json
 MAX_SOURCE_FAILURES = 3
@@ -121,7 +120,7 @@ class Intel(commands.Cog):
 
     async def call_ai(self, system: str, user: str, max_tokens: int = 300) -> str:
         """
-        Call Groq first. On RateLimitError (429) fall back to Gemini automatically.
+        Call Groq first. On RateLimitError (429) fall back to Gemini via HTTP.
         Returns the raw text response.
         """
         # --- Groq ---
@@ -142,11 +141,15 @@ class Intel(commands.Cog):
             if admin:
                 admin.log("⚠️ Groq 429 — Gemini fallback active")
 
-        # --- Gemini fallback ---
+        # --- Gemini fallback via HTTP (Python 3.8 compatible) ---
         try:
             prompt = f"{system}\n\n{user}"
-            response = client_gemini.generate_content(prompt)
-            return response.text.strip()
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    data = await resp.json()
+                    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
         except Exception as e:
             print(f"[VEGA] Gemini fallback error: {e}")
             raise

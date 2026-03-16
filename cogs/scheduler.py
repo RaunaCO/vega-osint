@@ -1,17 +1,16 @@
 import discord
+import aiohttp
 from discord.ext import commands, tasks
 from datetime import datetime, timezone, timedelta, time
 from groq import Groq, RateLimitError
-import google.generativeai as genai
 from config.settings import (
     GROQ_API_KEY, GROQ_MODEL, GEMINI_API_KEY, GEMINI_MODEL,
-    REGION_CHANNELS, BRIEFING_ROOM_CHANNEL_ID, MISSION_LOGS_CHANNEL_ID,
+    REGION_CHANNELS, BRIEFING_ROOM_CHANNEL_ID,
     BRIEFING_HOUR, PROMPT_BRIEFING
 )
 
 client_groq = Groq(api_key=GROQ_API_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
-client_gemini = genai.GenerativeModel(GEMINI_MODEL)
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 BRIEFING_HOURS = 24   # How many hours back the daily briefing covers
 
@@ -24,7 +23,7 @@ class Scheduler(commands.Cog):
         self.daily_briefing.cancel()
 
     async def call_ai(self, system: str, user: str, max_tokens: int = 2000) -> str:
-        """Groq first, Gemini fallback on 429."""
+        """Groq first, Gemini fallback on 429 via HTTP (Python 3.8 compatible)."""
         try:
             response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
@@ -39,8 +38,13 @@ class Scheduler(commands.Cog):
         except RateLimitError:
             print("[VEGA] Scheduler: Groq 429 — switching to Gemini")
         try:
-            response = client_gemini.generate_content(f"{system}\n\n{user}")
-            return response.text.strip()
+            prompt  = f"{system}\n\n{user}"
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            url     = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    data = await resp.json()
+                    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
         except Exception as e:
             print(f"[VEGA] Scheduler: Gemini fallback error: {e}")
             raise
