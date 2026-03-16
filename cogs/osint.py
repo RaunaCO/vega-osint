@@ -35,38 +35,29 @@ class OSINT(commands.Cog):
                 except:
                     not_found.append(platform)
 
-        # Found profiles — keep as markdown links (clickable)
-        found_text = "\n".join([
-            f"`FOUND ` **{p}** — [open profile]({url})"
-            for p, url in found
-        ]) if found else "`— no profiles found —`"
-
-        # Not found — compact block
-        absent_text = "  ".join([f"`{p}`" for p in not_found]) if not_found else "`—`"
+        found_text  = "\n".join([f"[{p}]({url})" for p, url in found]) if found else "*No profiles found*"
+        absent_text = "  ·  ".join(not_found) if not_found else "—"
 
         embed = discord.Embed(
-            title=f"RECON // {username}",
-            color=0x00ff41 if found else 0x1a1a2e,
+            title=f"Recon — {username}",
+            color=0x336699,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_author(name="[VEGA] USERNAME RECONNAISSANCE")
-        embed.add_field(name="PROFILES FOUND", value=found_text, inline=False)
-        embed.add_field(name="NOT FOUND", value=absent_text, inline=False)
-        embed.set_footer(text=f"{len(found)}/{len(platforms)} platforms matched // VEGA")
+        embed.add_field(name=f"Found ({len(found)})",      value=found_text,  inline=True)
+        embed.add_field(name=f"Not found ({len(not_found)})", value=absent_text, inline=True)
+        embed.set_footer(text=f"{len(found)}/{len(platforms)} platforms matched  ·  VEGA")
         await ctx.respond(embed=embed)
 
-        # Archive in #osint-lab
         hits_channel = self.bot.get_channel(OSINT_HITS_CHANNEL_ID)
         if hits_channel:
             archive_embed = discord.Embed(
-                title=f"RECON ARCHIVED // {username}",
-                color=0x1a1a2e,
+                title=f"Recon archived — {username}",
+                color=0x336699,
                 timestamp=datetime.now(timezone.utc)
             )
-            archive_embed.set_author(name="[VEGA] OSINT ARCHIVE")
-            archive_embed.add_field(name="PROFILES FOUND", value=found_text, inline=False)
-            archive_embed.add_field(name="NOT FOUND", value=absent_text, inline=False)
-            archive_embed.set_footer(text=f"requested by {ctx.author.display_name} // VEGA")
+            archive_embed.add_field(name=f"Found ({len(found)})",         value=found_text,  inline=True)
+            archive_embed.add_field(name=f"Not found ({len(not_found)})", value=absent_text, inline=True)
+            archive_embed.set_footer(text=f"requested by {ctx.author.display_name}  ·  VEGA")
             await hits_channel.send(embed=archive_embed)
 
         admin = self.bot.cogs.get("VegaAdmin")

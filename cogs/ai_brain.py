@@ -23,17 +23,15 @@ class AIBrain(commands.Cog):
         if not channel:
             return
         embed = discord.Embed(
-            title=f"SITREP ARCHIVED // {topic.upper()}",
+            title=f"SITREP — {topic.upper()}",
             description=content[:4000],
-            color=0x1a1a2e,
+            color=0x336699,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_author(name="[VEGA] MISSION LOGS")
-        embed.set_footer(text=f"{sources} sources // requested by {author}")
+        embed.set_footer(text=f"{sources} sources  ·  requested by {author}  ·  VEGA")
         await channel.send(embed=embed)
 
     async def post_to_channel(self, channel_id: int, embed: discord.Embed):
-        """Helper to post an embed to a specific channel."""
         channel = self.bot.get_channel(channel_id)
         if channel:
             await channel.send(embed=embed)
@@ -57,13 +55,12 @@ class AIBrain(commands.Cog):
             content = response.choices[0].message.content[:4000]
 
             embed = discord.Embed(
-                title=f"SITREP // {topic.upper()}",
+                title=f"SITREP — {topic.upper()}",
                 description=content,
-                color=0x1a1a2e,
+                color=0x336699,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_author(name="[VEGA] SITUATION REPORT")
-            embed.set_footer(text=f"{len(news)} sources analyzed // VEGA")
+            embed.set_footer(text=f"{len(news)} sources analyzed  ·  VEGA")
             await ctx.respond(embed=embed)
             await self.archive_sitrep(topic, content, len(news), ctx.author.display_name)
 
@@ -90,15 +87,13 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             embed = discord.Embed(
-                title="INTEL ANALYSIS",
+                title="Intelligence Analysis",
                 description=response.choices[0].message.content,
-                color=0x1a1a2e,
+                color=0x336699,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_author(name="[VEGA] AI ANALYSIS MODULE")
-            embed.set_footer(text=f"requested by {ctx.author.display_name} // VEGA")
+            embed.set_footer(text=f"requested by {ctx.author.display_name}  ·  VEGA")
             await ctx.respond(embed=embed)
-
             await self.post_to_channel(AI_ANALYSIS_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
@@ -140,15 +135,13 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             embed = discord.Embed(
-                title=f"EXEC SUMMARY // LAST {len(messages)} ENTRIES",
+                title=f"Executive Summary — last {len(messages)} entries",
                 description=response.choices[0].message.content,
-                color=0x1a1a2e,
+                color=0x336699,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_author(name="[VEGA] INTELLIGENCE DIGEST")
-            embed.set_footer(text=f"{len(messages)} entries processed // requested by {ctx.author.display_name}")
+            embed.set_footer(text=f"{len(messages)} entries  ·  requested by {ctx.author.display_name}  ·  VEGA")
             await ctx.respond(embed=embed)
-
             await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
@@ -176,10 +169,10 @@ class AIBrain(commands.Cog):
                 async for message in channel.history(limit=100, after=since):
                     if message.author == self.bot.user and message.embeds:
                         embed = message.embeds[0]
-                        level = next((f.value for f in embed.fields if "Level" in f.name), "MEDIUM")
+                        level    = next((f.value for f in embed.fields if "Level" in f.name), "MEDIUM")
                         location = next((f.value for f in embed.fields if "Location" in f.name), "N/A")
                         time_str = message.created_at.strftime("%H:%M UTC")
-                        entries.append(f"[{time_str}] [{level}] {embed.title} — 📍{location}")
+                        entries.append(f"[{time_str}] [{level}] {embed.title} — {location}")
                 if entries:
                     news_by_region[region] = entries
 
@@ -203,41 +196,36 @@ class AIBrain(commands.Cog):
             )
 
             content = response.choices[0].message.content
-            total = sum(len(e) for e in news_by_region.values())
+            total   = sum(len(e) for e in news_by_region.values())
 
             if len(content) <= 4000:
                 embed = discord.Embed(
-                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')}",
+                    title=f"Intelligence Briefing — {now.strftime('%Y-%m-%d')}",
                     description=content,
-                    color=0x1a1a2e,
+                    color=0x336699,
                     timestamp=now
                 )
-                embed.set_author(name="[VEGA] REGIONAL BRIEFING")
-                embed.set_footer(text=f"{total} events // last {hours}h // requested by {ctx.author.display_name}")
+                embed.set_footer(text=f"{total} events  ·  last {hours}h  ·  requested by {ctx.author.display_name}  ·  VEGA")
                 await ctx.respond(embed=embed)
-
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
             else:
                 cut = content.rfind("\n\n", 0, len(content)//2)
                 embed1 = discord.Embed(
-                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')} // PART 1",
+                    title=f"Intelligence Briefing — {now.strftime('%Y-%m-%d')}  (1/2)",
                     description=content[:cut],
-                    color=0x1a1a2e,
+                    color=0x336699,
                     timestamp=now
                 )
                 embed2 = discord.Embed(
-                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')} // PART 2",
+                    title=f"Intelligence Briefing — {now.strftime('%Y-%m-%d')}  (2/2)",
                     description=content[cut:],
-                    color=0x1a1a2e,
+                    color=0x336699,
                     timestamp=now
                 )
-                embed1.set_author(name="[VEGA] REGIONAL BRIEFING")
-                embed2.set_author(name="[VEGA] REGIONAL BRIEFING — CONTINUED")
-                embed1.set_footer(text=f"{total} events // last {hours}h")
-                embed2.set_footer(text="VEGA // continued")
+                embed1.set_footer(text=f"{total} events  ·  last {hours}h  ·  VEGA")
+                embed2.set_footer(text="VEGA  ·  continued")
                 await ctx.respond(embed=embed1)
                 await ctx.followup.send(embed=embed2)
-
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed1)
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed2)
 

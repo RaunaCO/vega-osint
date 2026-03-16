@@ -18,7 +18,6 @@ from utils.database import save_article, save_source_status
 client_groq = Groq(api_key=GROQ_API_KEY)
 
 def load_sources() -> dict:
-    """Load enabled sources from sources.json."""
     try:
         with open("sources.json", "r") as f:
             sources = json_lib.load(f)["sources"]
@@ -28,10 +27,15 @@ def load_sources() -> dict:
         return {}
 
 def color_by_level(level: str) -> int:
-    return {"CRITICAL": 0xff0000, "HIGH": 0xff4400, "MEDIUM": 0xffaa00, "LOW": 0x00ff41}.get(level, 0xff8800)
+    return {
+        "CRITICAL": 0xcc2200,
+        "HIGH":     0xdd5500,
+        "MEDIUM":   0xccaa00,
+        "LOW":      0x448844,
+    }.get(level, 0x555555)
 
-def emoji_by_level(level: str) -> str:
-    return {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "🟠")
+def badge(level: str) -> str:
+    return {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "⚪")
 
 class Intel(commands.Cog):
     def __init__(self, bot):
@@ -47,7 +51,6 @@ class Intel(commands.Cog):
         return self.bot.cogs.get("VegaAdmin")
 
     async def classify_article(self, title: str, summary: str, source: str) -> dict:
-        """Use AI to classify a news article by threat level and region."""
         try:
             response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
@@ -70,8 +73,7 @@ class Intel(commands.Cog):
             }
 
     async def post_article_embed(self, article: dict, classification: dict):
-        """Post a classified article to its regional channel."""
-        region = classification.get("region", "Global")
+        region     = classification.get("region", "Global")
         channel_id = REGION_CHANNELS.get(region)
         if not channel_id:
             return
@@ -84,43 +86,40 @@ class Intel(commands.Cog):
         confidence = classification.get("confidence", "MEDIUM")
         location   = classification.get("precise_location", "—")
         actors     = ", ".join(classification.get("key_actors", [])) or "—"
-        reason     = classification.get("reason", "—")
+        reason     = classification.get("reason", "")
 
         title = article["title"][:250]
         if article.get("translated") and article.get("original_title"):
-            title = f"{article['title'][:200]} *(translated)*"
+            title = f"{article['title'][:220]} *(translated)*"
 
-        # Compact data block — monospace, no emojis
-        data_block = (
-            f"```\n"
-            f"LEVEL      : {level}\n"
-            f"TYPE       : {category}\n"
-            f"CONFIDENCE : {confidence}\n"
-            f"REGION     : {region}\n"
-            f"LOCATION   : {location[:50]}\n"
-            f"ACTORS     : {actors[:80]}\n"
-            f"```"
-        )
+        # Description = summary then reason in italics — no labels needed
+        description = article["summary"][:400]
+        if reason:
+            description += f"\n\n*{reason}*"
 
         embed = discord.Embed(
             title=title,
             url=article["link"],
-            description=f"{data_block}\n{reason}",
+            description=description,
             color=color_by_level(level),
             timestamp=datetime.utcnow()
         )
 
-        embed.add_field(name="INTEL FEED", value=article["summary"][:450], inline=False)
+        # Author line = all classification context in one clean line
+        embed.set_author(name=f"{badge(level)}  {region}  ·  {level}  ·  {category}")
+
+        # Three inline fields — everything useful, nothing redundant
+        embed.add_field(name="Location",   value=location[:60], inline=True)
+        embed.add_field(name="Actors",     value=actors[:80],   inline=True)
+        embed.add_field(name="Confidence", value=confidence,    inline=True)
 
         if article.get("image"):
             embed.set_image(url=article["image"])
 
-        embed.set_author(name=f"[VEGA] {region} // {level}")
-        embed.set_footer(text=f"{article['source']} // {article.get('date', 'N/A')}")
+        embed.set_footer(text=f"{article['source']}  ·  {article.get('date', 'N/A')}")
         await channel.send(embed=embed)
 
     async def post_critical_alert(self, article: dict, classification: dict):
-        """Post a critical alert to the dedicated alerts channel."""
         channel = self.bot.get_channel(CRITICAL_CHANNEL_ID)
         if not channel:
             return
@@ -143,31 +142,32 @@ class Intel(commands.Cog):
                 max_tokens=400,
                 temperature=0.2
             )
-            level = classification["level"]
+            level    = classification["level"]
+            region   = classification["region"]
+            category = classification["category"]
+            location = classification.get("precise_location", "—")
+            actors   = ", ".join(classification.get("key_actors", [])) or "—"
 
             embed = discord.Embed(
-                title=f"// {level} // {classification['category'].upper()} //",
+                title=article["title"][:250],
+                url=article["link"],
                 description=response.choices[0].message.content,
                 color=color_by_level(level),
                 timestamp=datetime.utcnow()
             )
+            embed.set_author(name=f"{badge(level)}  {level} ALERT  ·  {region}  ·  {category}")
+            embed.add_field(name="Location", value=location[:60], inline=True)
+            embed.add_field(name="Actors",   value=actors[:80],   inline=True)
+            embed.set_footer(text=f"{article['source']}  ·  VEGA")
 
             if article.get("image"):
                 embed.set_image(url=article["image"])
-
-            # Inline fields — clean, no emoji
-            embed.add_field(name="REGION",   value=classification["region"], inline=True)
-            embed.add_field(name="LOCATION", value=classification.get("precise_location", "—"), inline=True)
-            embed.add_field(name="SOURCE",   value=f"[{article['source']}]({article['link']})", inline=True)
-
-            embed.set_author(name="[VEGA] PRIORITY ALERT")
-            embed.set_footer(text="VEGA // PRIORITY CHANNEL")
 
             await channel.send(content="@everyone" if level == "CRITICAL" else "", embed=embed)
 
             admin = self.get_admin()
             if admin:
-                admin.log(f"{emoji_by_level(level)} {level} Alert: {article['title'][:45]}...")
+                admin.log(f"{badge(level)} {level} Alert: {article['title'][:45]}...")
         except Exception as e:
             print(f"[VEGA] Alert error: {e}")
             admin = self.get_admin()
@@ -175,20 +175,18 @@ class Intel(commands.Cog):
                 await admin.report_error("critical_alert", str(e))
 
     async def update_cycle_report(self, channel, content: str, articles: list):
-        """Update the live cycle report message in #conflict-watch."""
         has_critical = any(a.get("classification", {}).get("level") == "CRITICAL" for a in articles)
         image = next((a["image"] for a in articles if a.get("image")), None)
 
         embed = discord.Embed(
-            title="CYCLE REPORT // " + datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC",
             description=content[:4000],
-            color=0xff0000 if has_critical else 0x1a1a2e,
+            color=0xcc2200 if has_critical else 0x336699,
             timestamp=datetime.utcnow()
         )
+        embed.set_author(name=f"Cycle Report  ·  {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC")
         if image:
             embed.set_thumbnail(url=image)
-        embed.set_author(name="[VEGA] INTEL CYCLE")
-        embed.set_footer(text=f"{len(articles)} articles processed // auto-updated each cycle")
+        embed.set_footer(text=f"{len(articles)} articles processed  ·  VEGA")
 
         try:
             if self.cycle_message:
@@ -202,7 +200,6 @@ class Intel(commands.Cog):
             print(f"[VEGA] Cycle report update error: {e}")
 
     async def run_scan(self):
-        """Main scanning function — fetch, filter, classify and post new articles."""
         admin = self.get_admin()
         if admin:
             admin.log("📡 Starting source scan...")
@@ -224,11 +221,11 @@ class Intel(commands.Cog):
                         feed = feedparser.parse(await resp.text())
                         source_hits = 0
                         for entry in feed.entries[:2]:
-                            title = entry.get("title", "")
-                            link = entry.get("link", "")
-                            summary = strip_html(entry.get("summary", ""))[:400]
+                            title    = entry.get("title", "")
+                            link     = entry.get("link", "")
+                            summary  = strip_html(entry.get("summary", ""))[:400]
                             pub_date = entry.get("published", "")[:30] if entry.get("published") else "N/A"
-                            image = extract_image(entry)
+                            image    = extract_image(entry)
 
                             if link in self.seen:
                                 continue
@@ -282,7 +279,6 @@ class Intel(commands.Cog):
             classification = await self.classify_article(article["title"], article["summary"], article["source"])
             article["classification"] = classification
             await self.post_article_embed(article, classification)
-
             save_article({**article, **classification})
 
             if admin:
