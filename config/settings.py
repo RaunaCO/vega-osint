@@ -113,13 +113,17 @@ LEVELS:
 - MEDIUM: active tensions, troop movements, hostile declarations
 - LOW: analysis, context, unconfirmed reports
 
-REGIONS (pick the single most relevant):
-- Middle East   → Israel, Palestine, Iran, Iraq, Syria, Lebanon, Yemen, Saudi Arabia, Gulf states
-- Europe        → Russia, Ukraine, NATO Europe, Balkans, Caucasus
-- Africa        → Sub-Saharan Africa, North Africa, Sahel, Horn of Africa
-- Asia-Pacific  → East Asia, South Asia, Southeast Asia, Oceania, Australia, New Zealand, Pacific Islands, Indo-Pacific
+REGION RULES — follow strictly, geography does not override these rules:
+- Middle East   → Israel, Palestine, Iran, Iraq, Syria, Lebanon, Jordan, Yemen,
+                  Saudi Arabia, UAE, Qatar, Kuwait, Bahrain, Oman, Egypt, Turkey.
+                  *** Iran and Iraq are ALWAYS Middle East, never Asia-Pacific ***
+- Europe        → Russia, Ukraine, UK, France, Germany, NATO Europe, Balkans, Caucasus
+- Africa        → Sub-Saharan Africa, North Africa, Sahel, Horn of Africa, Libya, Algeria
+- Asia-Pacific  → China, Japan, South Korea, North Korea, India, Pakistan, Afghanistan,
+                  Southeast Asia, Oceania, Australia, New Zealand, Pacific Islands.
+                  *** Do NOT include Iran, Iraq, or any Gulf state here ***
 - Americas      → North America, Central America, South America, Caribbean
-- Global        → Events spanning multiple regions or with worldwide impact
+- Global        → Events spanning 3 or more regions simultaneously
 
 {
   "level": "CRITICAL/HIGH/MEDIUM/LOW",
