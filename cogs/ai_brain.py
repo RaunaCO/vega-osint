@@ -23,12 +23,13 @@ class AIBrain(commands.Cog):
         if not channel:
             return
         embed = discord.Embed(
-            title=f"📋 SITREP ARCHIVED — {topic.upper()}",
+            title=f"SITREP ARCHIVED // {topic.upper()}",
             description=content[:4000],
-            color=0x2b2d31,
+            color=0x1a1a2e,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_footer(text=f"VEGA OSINT • {sources} sources • By {author}")
+        embed.set_author(name="[VEGA] MISSION LOGS")
+        embed.set_footer(text=f"{sources} sources // requested by {author}")
         await channel.send(embed=embed)
 
     async def post_to_channel(self, channel_id: int, embed: discord.Embed):
@@ -54,13 +55,15 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             content = response.choices[0].message.content[:4000]
+
             embed = discord.Embed(
-                title=f"📋 SITREP — {topic.upper()}",
+                title=f"SITREP // {topic.upper()}",
                 description=content,
-                color=0x00ff41,
+                color=0x1a1a2e,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text=f"VEGA OSINT • {len(news)} sources analyzed")
+            embed.set_author(name="[VEGA] SITUATION REPORT")
+            embed.set_footer(text=f"{len(news)} sources analyzed // VEGA")
             await ctx.respond(embed=embed)
             await self.archive_sitrep(topic, content, len(news), ctx.author.display_name)
 
@@ -87,15 +90,15 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             embed = discord.Embed(
-                title="🧠 INTELLIGENCE ANALYSIS",
+                title="INTEL ANALYSIS",
                 description=response.choices[0].message.content,
-                color=0x7700ff,
+                color=0x1a1a2e,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text=f"VEGA OSINT • Requested by {ctx.author.display_name}")
+            embed.set_author(name="[VEGA] AI ANALYSIS MODULE")
+            embed.set_footer(text=f"requested by {ctx.author.display_name} // VEGA")
             await ctx.respond(embed=embed)
 
-            # Also post to #ai-analysis
             await self.post_to_channel(AI_ANALYSIS_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
@@ -137,15 +140,15 @@ class AIBrain(commands.Cog):
                 temperature=0.2
             )
             embed = discord.Embed(
-                title=f"📊 SUMMARY — Last {len(messages)} articles",
+                title=f"EXEC SUMMARY // LAST {len(messages)} ENTRIES",
                 description=response.choices[0].message.content,
-                color=0x0088ff,
+                color=0x1a1a2e,
                 timestamp=datetime.now(timezone.utc)
             )
-            embed.set_footer(text=f"VEGA OSINT • {len(messages)} entries • By {ctx.author.display_name}")
+            embed.set_author(name="[VEGA] INTELLIGENCE DIGEST")
+            embed.set_footer(text=f"{len(messages)} entries processed // requested by {ctx.author.display_name}")
             await ctx.respond(embed=embed)
 
-            # Also post to #briefing-room
             await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
 
             admin = self.bot.cogs.get("VegaAdmin")
@@ -204,26 +207,37 @@ class AIBrain(commands.Cog):
 
             if len(content) <= 4000:
                 embed = discord.Embed(
-                    title=f"🌅 INTELLIGENCE BRIEFING — {now.strftime('%m/%d/%Y')}",
+                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')}",
                     description=content,
-                    color=0x0088ff,
+                    color=0x1a1a2e,
                     timestamp=now
                 )
-                embed.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h • By {ctx.author.display_name}")
+                embed.set_author(name="[VEGA] REGIONAL BRIEFING")
+                embed.set_footer(text=f"{total} events // last {hours}h // requested by {ctx.author.display_name}")
                 await ctx.respond(embed=embed)
 
-                # Also post to #briefing-room
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed)
             else:
                 cut = content.rfind("\n\n", 0, len(content)//2)
-                embed1 = discord.Embed(title="🌅 INTELLIGENCE BRIEFING — Part 1", description=content[:cut], color=0x0088ff, timestamp=now)
-                embed2 = discord.Embed(title="🌅 INTELLIGENCE BRIEFING — Part 2", description=content[cut:], color=0x0088ff, timestamp=now)
-                embed1.set_footer(text=f"VEGA OSINT • {total} events • Last {hours}h")
-                embed2.set_footer(text="VEGA OSINT • Continued")
+                embed1 = discord.Embed(
+                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')} // PART 1",
+                    description=content[:cut],
+                    color=0x1a1a2e,
+                    timestamp=now
+                )
+                embed2 = discord.Embed(
+                    title=f"INTELLIGENCE BRIEFING // {now.strftime('%Y-%m-%d')} // PART 2",
+                    description=content[cut:],
+                    color=0x1a1a2e,
+                    timestamp=now
+                )
+                embed1.set_author(name="[VEGA] REGIONAL BRIEFING")
+                embed2.set_author(name="[VEGA] REGIONAL BRIEFING — CONTINUED")
+                embed1.set_footer(text=f"{total} events // last {hours}h")
+                embed2.set_footer(text="VEGA // continued")
                 await ctx.respond(embed=embed1)
                 await ctx.followup.send(embed=embed2)
 
-                # Also post to #briefing-room
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed1)
                 await self.post_to_channel(BRIEFING_ROOM_CHANNEL_ID, embed2)
 

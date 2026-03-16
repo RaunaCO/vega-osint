@@ -28,7 +28,7 @@ def load_sources() -> dict:
         return {}
 
 def color_by_level(level: str) -> int:
-    return {"CRITICAL": 0xff0000, "HIGH": 0xff6600, "MEDIUM": 0xffaa00, "LOW": 0xffff00}.get(level, 0xff8800)
+    return {"CRITICAL": 0xff0000, "HIGH": 0xff4400, "MEDIUM": 0xffaa00, "LOW": 0x00ff41}.get(level, 0xff8800)
 
 def emoji_by_level(level: str) -> str:
     return {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "🟠")
@@ -79,32 +79,44 @@ class Intel(commands.Cog):
         if not channel:
             return
 
-        level = classification["level"]
+        level      = classification["level"]
+        category   = classification.get("category", "Other")
+        confidence = classification.get("confidence", "MEDIUM")
+        location   = classification.get("precise_location", "—")
+        actors     = ", ".join(classification.get("key_actors", [])) or "—"
+        reason     = classification.get("reason", "—")
+
+        title = article["title"][:250]
+        if article.get("translated") and article.get("original_title"):
+            title = f"{article['title'][:200]} *(translated)*"
+
+        # Compact data block — monospace, no emojis
+        data_block = (
+            f"```\n"
+            f"LEVEL      : {level}\n"
+            f"TYPE       : {category}\n"
+            f"CONFIDENCE : {confidence}\n"
+            f"REGION     : {region}\n"
+            f"LOCATION   : {location[:50]}\n"
+            f"ACTORS     : {actors[:80]}\n"
+            f"```"
+        )
+
         embed = discord.Embed(
-            title=article["title"][:250],
+            title=title,
             url=article["link"],
+            description=f"{data_block}\n{reason}",
             color=color_by_level(level),
             timestamp=datetime.utcnow()
         )
-        if article.get("translated") and article.get("original_title"):
-            embed.title = f"{article['title'][:200]}\n*({article['original_title'][:100]})*"
 
-        embed.add_field(name="📰 Summary", value=article["summary"][:400], inline=False)
-        embed.add_field(name="🧠 VEGA Analysis", value=classification.get("reason", "N/A"), inline=False)
-        embed.add_field(name=f"{emoji_by_level(level)} Level", value=level, inline=True)
-        embed.add_field(name="🏷️ Type", value=classification.get("category", "Other"), inline=True)
-        embed.add_field(name="🎯 Confidence", value=classification.get("confidence", "MEDIUM"), inline=True)
-        embed.add_field(name="📍 Location", value=classification.get("precise_location", "Not specified"), inline=True)
-        embed.add_field(name="👥 Actors", value=", ".join(classification.get("key_actors", [])) or "Not identified", inline=True)
-        embed.add_field(name="🔗 Source", value=f"[{article['source']}]({article['link']})", inline=True)
+        embed.add_field(name="INTEL FEED", value=article["summary"][:450], inline=False)
 
-        if article.get("translated"):
-            embed.add_field(name="🌐 Language", value="Translated to English", inline=True)
         if article.get("image"):
             embed.set_image(url=article["image"])
 
-        embed.set_author(name=f"VEGA INTEL — {region}")
-        embed.set_footer(text="VEGA OSINT • Synthetic Intelligence Protocol")
+        embed.set_author(name=f"[VEGA] {region} // {level}")
+        embed.set_footer(text=f"{article['source']} // {article.get('date', 'N/A')}")
         await channel.send(embed=embed)
 
     async def post_critical_alert(self, article: dict, classification: dict):
@@ -117,24 +129,39 @@ class Intel(commands.Cog):
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": PROMPT_ALERT},
-                    {"role": "user", "content": f"Title: {article['title']}\nSummary: {article['summary']}\nSource: {article['source']}\nLevel: {classification['level']}\nRegion: {classification['region']}\nCategory: {classification['category']}\nActors: {', '.join(classification.get('key_actors', []))}\nLocation: {classification.get('precise_location', 'N/A')}"}
+                    {"role": "user", "content": (
+                        f"Title: {article['title']}\n"
+                        f"Summary: {article['summary']}\n"
+                        f"Source: {article['source']}\n"
+                        f"Level: {classification['level']}\n"
+                        f"Region: {classification['region']}\n"
+                        f"Category: {classification['category']}\n"
+                        f"Actors: {', '.join(classification.get('key_actors', []))}\n"
+                        f"Location: {classification.get('precise_location', 'N/A')}"
+                    )}
                 ],
                 max_tokens=400,
                 temperature=0.2
             )
             level = classification["level"]
+
             embed = discord.Embed(
-                title=f"{emoji_by_level(level)} {level} ALERT — {classification['category'].upper()}",
+                title=f"// {level} // {classification['category'].upper()} //",
                 description=response.choices[0].message.content,
                 color=color_by_level(level),
                 timestamp=datetime.utcnow()
             )
+
             if article.get("image"):
                 embed.set_image(url=article["image"])
-            embed.add_field(name="🌍 Region", value=classification["region"], inline=True)
-            embed.add_field(name="📍 Location", value=classification.get("precise_location", "N/A"), inline=True)
-            embed.add_field(name="🔗 Source", value=f"[{article['source']}]({article['link']})", inline=True)
-            embed.set_footer(text="VEGA OSINT • MAXIMUM PRIORITY")
+
+            # Inline fields — clean, no emoji
+            embed.add_field(name="REGION",   value=classification["region"], inline=True)
+            embed.add_field(name="LOCATION", value=classification.get("precise_location", "—"), inline=True)
+            embed.add_field(name="SOURCE",   value=f"[{article['source']}]({article['link']})", inline=True)
+
+            embed.set_author(name="[VEGA] PRIORITY ALERT")
+            embed.set_footer(text="VEGA // PRIORITY CHANNEL")
 
             await channel.send(content="@everyone" if level == "CRITICAL" else "", embed=embed)
 
@@ -153,14 +180,15 @@ class Intel(commands.Cog):
         image = next((a["image"] for a in articles if a.get("image")), None)
 
         embed = discord.Embed(
-            title="📡 LATEST CYCLE REPORT",
+            title="CYCLE REPORT // " + datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " UTC",
             description=content[:4000],
-            color=0xff0000 if has_critical else 0x0088ff,
+            color=0xff0000 if has_critical else 0x1a1a2e,
             timestamp=datetime.utcnow()
         )
         if image:
             embed.set_thumbnail(url=image)
-        embed.set_footer(text=f"VEGA OSINT • {len(articles)} articles • Updated every cycle")
+        embed.set_author(name="[VEGA] INTEL CYCLE")
+        embed.set_footer(text=f"{len(articles)} articles processed // auto-updated each cycle")
 
         try:
             if self.cycle_message:
