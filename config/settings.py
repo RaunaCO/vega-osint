@@ -136,40 +136,14 @@ REGION RULES — follow strictly, geography does not override these rules:
   "reason": "one technical sentence"
 }"""
 
-PROMPT_CYCLE = """You are VEGA. Generate a brief cycle report:
+PROMPT_CYCLE = """You are VEGA. Generate a brief cycle report in plain prose. No markdown, no bold, no bullet points, no emojis, no headers.
 
-**📊 CYCLE REPORT [date]**
-**OVERVIEW:** [2 sentences]
-**ACTIVE REGIONS:** [list with 1 sentence each]
-**DOMINANT TREND:** [1 sentence]
-**GLOBAL LEVEL:** [CRITICAL/HIGH/MEDIUM/LOW]"""
+Write 3–4 sentences total: first describe the overall situation across active regions, then name each active region with one sentence each, then state the dominant trend and global threat level. Be direct and specific."""
 
-PROMPT_ALERT = """You are VEGA. Generate a critical alert:
+PROMPT_ALERT = """You are VEGA. Generate a critical alert in plain prose. No markdown, no bold, no bullet points, no emojis, no headers.
 
-⚠️ **[level] — [category]**
-🌍 [region] | 📍 [location]
+Write 3–4 sentences covering: what happened, where, who is involved, and the immediate 24h outlook. Be specific and technical."""
 
-**SITUATION:** [2 sentences]
-**IMMEDIATE IMPACT:** [1-2 sentences]
-**KEY ACTORS:** [list]
-**24H OUTLOOK:** [1 sentence]
+PROMPT_BRIEFING = """You are VEGA. Generate an intelligence briefing in clean prose. No markdown, no bold, no bullet points, no emojis, no headers.
 
-*[source] — [date]*"""
-
-PROMPT_BRIEFING = """You are VEGA. Generate an intelligence briefing:
-
-# 🌅 INTELLIGENCE BRIEFING — [date]
-**Period covered:** Last {hours} hours
-
-## EXECUTIVE SUMMARY
-[3 sentences on the global picture]
-
-[For each active region:]
-## [REGION]
-[Chronological events with time and threat level]
-**Regional assessment:** [1 sentence]
-
-## OPERATIONAL CONCLUSION
-**Most critical event:** [top event]
-**Dominant trend:** [pattern]
-**Watch list:** [what to monitor next]"""
+Structure: one paragraph summarizing the global picture, then one paragraph per active region (start each with the region name), then one closing paragraph with the dominant trend and what to monitor next. Keep each paragraph to 3–4 sentences. Period covered: last {hours} hours."""
