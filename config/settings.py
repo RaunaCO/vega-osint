@@ -20,15 +20,13 @@ AI_ANALYSIS_CHANNEL_ID = int(os.getenv("AI_ANALYSIS_CHANNEL_ID"))
 BRIEFING_ROOM_CHANNEL_ID = int(os.getenv("BRIEFING_ROOM_CHANNEL_ID"))
 EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
 
-# REGION_CHANNELS maps the region string returned by the AI classifier
-# to the Discord channel ID where articles get routed.
-# "Asia-Pacific" replaces "Asia" to include Oceania (Australia, NZ, Pacific Islands).
-# The Discord channel ID (REGION_ASIA_ID) is the same — no .env change needed.
+# Region → Discord channel mapping
+# Asia-Pacific covers East/South/Southeast Asia + Oceania (same ID as old REGION_ASIA_ID)
 REGION_CHANNELS = {
     "Middle East":  int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
     "Europe":       int(os.getenv("REGION_EUROPA_ID")),
     "Africa":       int(os.getenv("REGION_AFRICA_ID")),
-    "Asia-Pacific": int(os.getenv("REGION_ASIA_ID")),   # covers Asia + Oceania
+    "Asia-Pacific": int(os.getenv("REGION_ASIA_ID")),
     "Americas":     int(os.getenv("REGION_AMERICAS_ID")),
 }
 
@@ -38,22 +36,6 @@ REGION_CHANNELS = {
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
 MONITOR_INTERVAL = 15
-
-# ============================================
-# NEWS SOURCES (legacy static dict — system now uses sources.json)
-# ============================================
-NEWS_FEEDS = {
-    "BBC World":        "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "Al Jazeera":       "https://www.aljazeera.com/xml/rss/all.xml",
-    "DW World":         "https://rss.dw.com/rdf/rss-en-world",
-    "Kyiv Independent": "https://kyivindependent.com/feed/",
-    "The War Zone":     "https://www.thedrive.com/the-war-zone/rss",
-    "Foreign Policy":   "https://foreignpolicy.com/feed/",
-    "Military Times":   "https://www.militarytimes.com/arc/outboundfeeds/rss/",
-    "Defense News":     "https://www.defensenews.com/arc/outboundfeeds/rss/",
-    "France 24":        "https://www.france24.com/en/rss",
-    "The Guardian":     "https://www.theguardian.com/world/rss",
-}
 
 # ============================================
 # FILTERS
@@ -66,7 +48,6 @@ KEYWORDS = [
     "NATO", "UN", "Pentagon", "Kremlin", "IDF", "Hamas", "Hezbollah",
     "Ukraine", "Gaza", "Iran", "Israel", "Syria", "Sudan",
     "Yemen", "Taiwan", "Korea", "Russia", "China",
-    # Asia-Pacific & Oceania additions
     "Pacific", "Indo-Pacific", "Australia", "AUKUS", "ANZUS",
     "New Zealand", "Papua", "Fiji", "Solomons", "Vanuatu",
     "Philippines", "Indonesia", "Myanmar", "South China Sea",

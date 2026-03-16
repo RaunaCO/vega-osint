@@ -5,7 +5,6 @@ import aiohttp
 import feedparser
 from deep_translator import GoogleTranslator
 from langdetect import detect, LangDetectException
-from config.settings import NEWS_FEEDS
 
 SEEN_PATH = "data/seen.json"
 
@@ -33,7 +32,7 @@ def detect_and_translate(text: str):
         return text, False
 
 def load_seen() -> set:
-    """Load seen article links from database or fallback JSON."""
+    """Load seen article links from database, fallback to JSON if DB unavailable."""
     try:
         from utils.database import get_all_links
         return get_all_links()
@@ -62,20 +61,31 @@ def extract_image(entry) -> str:
         return match.group(1)
     return ""
 
+def load_sources() -> dict:
+    """Load enabled sources from sources.json."""
+    try:
+        with open("sources.json", "r") as f:
+            sources = json.load(f)["sources"]
+        return {s["name"]: s["url"] for s in sources if s["enabled"]}
+    except Exception as e:
+        print(f"[VEGA] Error loading sources: {e}")
+        return {}
+
 async def search_relevant_news(topic: str, max_results: int = 8) -> list:
-    """Search news feeds for articles relevant to a given topic."""
+    """Search all enabled sources for articles relevant to a given topic."""
     keywords = re.split(r'[\s\-,]+', topic.lower())
     found = []
+    feeds = load_sources()
     async with aiohttp.ClientSession() as session:
-        for source, url in NEWS_FEEDS.items():
+        for source, url in feeds.items():
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     content = await resp.text()
                     feed = feedparser.parse(content)
                     for entry in feed.entries[:15]:
-                        title = entry.get("title", "")
+                        title   = entry.get("title", "")
                         summary = strip_html(entry.get("summary", ""))[:300]
-                        link = entry.get("link", "")
+                        link    = entry.get("link", "")
                         if any(k in title.lower() or k in summary.lower() for k in keywords):
                             found.append(f"[{source}] {title}\n{summary}\nSource: {link}")
             except Exception as e:
