@@ -12,13 +12,10 @@ CONFLICT_CHANNEL_ID = int(os.getenv("CONFLICT_CHANNEL_ID"))
 STATUS_CHANNEL_ID = int(os.getenv("STATUS_CHANNEL_ID"))
 LOGS_CHANNEL_ID = int(os.getenv("LOGS_CHANNEL_ID"))
 CRITICAL_CHANNEL_ID = int(os.getenv("CRITICAL_CHANNEL_ID"))
-OSINT_HITS_CHANNEL_ID = int(os.getenv("OSINT_HITS_CHANNEL_ID"))
 MISSION_LOGS_CHANNEL_ID = int(os.getenv("MISSION_LOGS_CHANNEL_ID"))
 COMMAND_CENTER_ID = int(os.getenv("COMMAND_CENTER_ID"))
 VEGA_ERRORS_CHANNEL_ID = int(os.getenv("VEGA_ERRORS_CHANNEL_ID"))
-AI_ANALYSIS_CHANNEL_ID = int(os.getenv("AI_ANALYSIS_CHANNEL_ID"))
 BRIEFING_ROOM_CHANNEL_ID = int(os.getenv("BRIEFING_ROOM_CHANNEL_ID"))
-EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
 
 # Region → Discord channel mapping
 # Asia-Pacific covers East/South/Southeast Asia + Oceania (same ID as old REGION_ASIA_ID)
@@ -31,11 +28,15 @@ REGION_CHANNELS = {
 }
 
 # ============================================
-# AI
+# AI — Groq primary, Gemini fallback
 # ============================================
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY")
+GROQ_MODEL     = "llama-3.3-70b-versatile"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL   = "gemini-1.5-flash"
+
 MONITOR_INTERVAL = 15
+BRIEFING_HOUR    = 8   # UTC — daily briefing time
 
 # ============================================
 # FILTERS
@@ -65,26 +66,6 @@ CRITICAL_KEYWORDS = [
 # AI PROMPTS
 # ============================================
 PROMPT_SYSTEM = """You are VEGA, an AI-powered geopolitical intelligence system specializing in conflict analysis and military operations. Tone: technical, direct, no filler. Always respond in English."""
-
-PROMPT_SITREP = """You are VEGA. Generate SITREPs using this exact format:
-
-**CLASSIFICATION:** VEGA-INTEL // DO NOT DISTRIBUTE
-**DATE/TIME:** [UTC]
-**AREA OF OPERATIONS:** [region]
-
-**EXECUTIVE SUMMARY:** [2-3 sentences]
-
-**KEY DEVELOPMENTS:**
-- [point 1]
-- [point 2]
-- [point 3]
-
-**KEY ACTORS:** [list]
-**THREAT ASSESSMENT:** [CRITICAL/HIGH/MEDIUM/LOW]
-**TREND:** [ESCALATING/STABLE/DE-ESCALATING]
-**OUTLOOK:** [1-2 sentences]
-
-Base analysis ONLY on provided news. If insufficient data, state it clearly."""
 
 PROMPT_CLASSIFY = """Classify this news article. Respond ONLY with valid JSON, no extra text.
 
@@ -125,6 +106,6 @@ PROMPT_ALERT = """You are VEGA. Generate a critical alert in plain prose. No mar
 
 Write 3–4 sentences covering: what happened, where, who is involved, and the immediate 24h outlook. Be specific and technical."""
 
-PROMPT_BRIEFING = """You are VEGA. Generate an intelligence briefing in clean prose. No markdown, no bold, no bullet points, no emojis, no headers.
+PROMPT_BRIEFING = """You are VEGA. Generate a daily intelligence briefing in clean prose. No markdown, no bold, no bullet points, no emojis, no headers.
 
-Structure: one paragraph summarizing the global picture, then one paragraph per active region (start each with the region name), then one closing paragraph with the dominant trend and what to monitor next. Keep each paragraph to 3–4 sentences. Period covered: last {hours} hours."""
+Structure: one paragraph summarizing the global picture, then one paragraph per active region (start each with the region name), then one closing paragraph with the dominant trend and what to monitor in the next 24 hours. Keep each paragraph to 3–4 sentences. Be specific — name actors, locations, and events. Period covered: last {hours} hours."""

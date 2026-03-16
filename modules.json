@@ -5,6 +5,11 @@
       "description": "Real-time news monitoring and AI-powered conflict classification",
       "cog": "cogs.intel"
     },
+    "scheduler": {
+      "enabled": true,
+      "description": "Automatic daily intelligence briefing at 08:00 UTC",
+      "cog": "cogs.scheduler"
+    },
     "admin": {
       "enabled": true,
       "description": "Live system panels — status, logs, errors, global situation",

@@ -6,16 +6,23 @@ import asyncio
 from discord.ext import commands, tasks
 import aiohttp
 from datetime import datetime
-from groq import Groq
+from groq import Groq, RateLimitError
+import google.generativeai as genai
 from config.settings import (
-    GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
+    CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
     KEYWORDS, CRITICAL_KEYWORDS, GROQ_API_KEY, GROQ_MODEL,
+    GEMINI_API_KEY, GEMINI_MODEL,
     PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
 )
 from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate, extract_image
 from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+client_gemini = genai.GenerativeModel(GEMINI_MODEL)
+
+# Max consecutive failures before a source is auto-disabled in sources.json
+MAX_SOURCE_FAILURES = 3
 
 # Topics that slip through global sources but are not intelligence-relevant
 EXCLUDE_KEYWORDS = [
@@ -23,7 +30,7 @@ EXCLUDE_KEYWORDS = [
     "league", "fixture", "standings", "transfer", "signing",
     "album", "concert", "tour", "box office", "award", "oscar",
     "grammy", "celebrity", "kardashian", "weather forecast",
-    "recipe", "fashion week", "stock market", "earnings report",
+    "recipe", "fashion week", "earnings report",
     "quarterly results", "merger", "acquisition"
 ]
 
@@ -35,6 +42,21 @@ def load_sources() -> dict:
     except Exception as e:
         print(f"[VEGA] Error loading sources: {e}")
         return {}
+
+def disable_source(name: str):
+    """Mark a source as disabled in sources.json after repeated failures."""
+    try:
+        with open("sources.json", "r") as f:
+            data = json_lib.load(f)
+        for source in data["sources"]:
+            if source["name"] == name:
+                source["enabled"] = False
+                break
+        with open("sources.json", "w") as f:
+            json_lib.dump(data, f, indent=2)
+        print(f"[VEGA] Source auto-disabled: {name}")
+    except Exception as e:
+        print(f"[VEGA] Error disabling source {name}: {e}")
 
 def color_by_level(level: str) -> int:
     return {
@@ -49,19 +71,14 @@ def badge(level: str) -> str:
 
 def score_article(title: str, summary: str) -> int:
     """
-    Score an article by relevance. Returns an integer score.
-    - Critical keyword in title  = 5 pts (instant pass)
-    - Regular keyword in title   = 2 pts each
-    - Regular keyword in summary = 1 pt each
-    Minimum passing score: 3
+    Score article relevance. Minimum passing score: 3.
+    Critical keyword in title = 10 (instant pass).
+    Regular keyword in title  = 2 pts, in summary = 1 pt.
     """
     title_low   = title.lower()
     summary_low = summary.lower()
-
-    # Instant pass on critical keyword in title
     if any(k in title_low for k in CRITICAL_KEYWORDS):
         return 10
-
     score = 0
     for k in KEYWORDS:
         kl = k.lower()
@@ -69,36 +86,31 @@ def score_article(title: str, summary: str) -> int:
             score += 2
         elif kl in summary_low:
             score += 1
-
     return score
 
 def is_excluded(title: str, summary: str) -> bool:
-    """Return True if the article is clearly non-intelligence content."""
     combined = (title + " " + summary).lower()
     return any(ex in combined for ex in EXCLUDE_KEYWORDS)
 
 def clean_summary(raw: str) -> str:
-    """
-    Strip HTML, collapse whitespace, cut at last full stop within 220 chars.
-    Returns a clean 1-2 sentence summary or empty string.
-    """
+    """Strip HTML, collapse whitespace, cut at last full stop within 220 chars."""
     text = strip_html(raw).strip()
-    # Collapse multiple spaces/newlines
     text = " ".join(text.split())
     if not text:
         return ""
-    # Cut at last full stop within 220 chars to avoid mid-sentence truncation
     chunk = text[:220]
-    cut = chunk.rfind(". ")
+    cut   = chunk.rfind(". ")
     return chunk[:cut + 1] if cut > 80 else chunk
 
 class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.seen = load_seen()
-        self.cycle_message = None
-        self.articles_today = 0
+        self.cycle_message    = None
+        self.articles_today   = 0
         self.sources_last_scan = 0
+        # Track consecutive failures per source name
+        self.source_failures  = {}
         self.monitor.start()
 
     def cog_unload(self):
@@ -107,18 +119,46 @@ class Intel(commands.Cog):
     def get_admin(self):
         return self.bot.cogs.get("VegaAdmin")
 
-    async def classify_article(self, title: str, summary: str, source: str) -> dict:
+    async def call_ai(self, system: str, user: str, max_tokens: int = 300) -> str:
+        """
+        Call Groq first. On RateLimitError (429) fall back to Gemini automatically.
+        Returns the raw text response.
+        """
+        # --- Groq ---
         try:
             response = client_groq.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": PROMPT_CLASSIFY},
-                    {"role": "user", "content": f"Title: {title}\nSummary: {summary}\nSource: {source}"}
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user}
                 ],
-                max_tokens=300,
+                max_tokens=max_tokens,
                 temperature=0.1
             )
-            content = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+            return response.choices[0].message.content.strip()
+        except RateLimitError:
+            print("[VEGA] Groq rate limit hit — switching to Gemini fallback")
+            admin = self.get_admin()
+            if admin:
+                admin.log("⚠️ Groq 429 — Gemini fallback active")
+
+        # --- Gemini fallback ---
+        try:
+            prompt = f"{system}\n\n{user}"
+            response = client_gemini.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            print(f"[VEGA] Gemini fallback error: {e}")
+            raise
+
+    async def classify_article(self, title: str, summary: str, source: str) -> dict:
+        try:
+            raw = await self.call_ai(
+                system=PROMPT_CLASSIFY,
+                user=f"Title: {title}\nSummary: {summary}\nSource: {source}",
+                max_tokens=300
+            )
+            content = raw.replace("```json", "").replace("```", "").strip()
             return json.loads(content)
         except Exception as e:
             print(f"[VEGA] Classification error: {e}")
@@ -149,7 +189,6 @@ class Intel(commands.Cog):
         if article.get("translated") and article.get("original_title"):
             title = f"{article['title'][:220]} *(translated)*"
 
-        # Build description — summary always present, reason only if meaningful
         description = article["short_summary"]
         if reason and "classification failed" not in reason.lower():
             description += f"\n\n*{reason}*"
@@ -177,23 +216,19 @@ class Intel(commands.Cog):
         if not channel:
             return
         try:
-            response = client_groq.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": PROMPT_ALERT},
-                    {"role": "user", "content": (
-                        f"Title: {article['title']}\n"
-                        f"Summary: {article['summary']}\n"
-                        f"Source: {article['source']}\n"
-                        f"Level: {classification['level']}\n"
-                        f"Region: {classification['region']}\n"
-                        f"Category: {classification['category']}\n"
-                        f"Actors: {', '.join(classification.get('key_actors', []))}\n"
-                        f"Location: {classification.get('precise_location', 'N/A')}"
-                    )}
-                ],
-                max_tokens=400,
-                temperature=0.2
+            raw = await self.call_ai(
+                system=PROMPT_ALERT,
+                user=(
+                    f"Title: {article['title']}\n"
+                    f"Summary: {article['summary']}\n"
+                    f"Source: {article['source']}\n"
+                    f"Level: {classification['level']}\n"
+                    f"Region: {classification['region']}\n"
+                    f"Category: {classification['category']}\n"
+                    f"Actors: {', '.join(classification.get('key_actors', []))}\n"
+                    f"Location: {classification.get('precise_location', 'N/A')}"
+                ),
+                max_tokens=400
             )
             level    = classification["level"]
             region   = classification["region"]
@@ -203,7 +238,7 @@ class Intel(commands.Cog):
 
             embed = discord.Embed(
                 title=article["title"][:250],
-                description=response.choices[0].message.content,
+                description=raw,
                 color=color_by_level(level),
                 timestamp=datetime.utcnow()
             )
@@ -260,8 +295,8 @@ class Intel(commands.Cog):
         if not main_channel:
             return
 
-        new_articles = []
-        news_feeds = load_sources()
+        new_articles   = []
+        news_feeds     = load_sources()
         self.sources_last_scan = len(news_feeds)
 
         if admin:
@@ -285,11 +320,8 @@ class Intel(commands.Cog):
                             summary       = strip_html(raw_sum)[:400]
                             short_summary = clean_summary(raw_sum)
 
-                            # Skip excluded topics
                             if is_excluded(title, summary):
                                 continue
-
-                            # Score-based filter — title + summary, minimum 3 pts
                             if score_article(title, summary) < 3:
                                 continue
 
@@ -321,13 +353,28 @@ class Intel(commands.Cog):
                                     "time":   datetime.utcnow().strftime("%H:%M")
                                 })
 
-                        save_source_status(source, True)
+                    # Success — reset failure counter for this source
+                    self.source_failures[source] = 0
+                    save_source_status(source, True)
 
                 except Exception as e:
                     print(f"[VEGA] Feed error {source}: {e}")
                     save_source_status(source, False, str(e)[:200])
+
+                    # Increment failure counter
+                    self.source_failures[source] = self.source_failures.get(source, 0) + 1
+                    fails = self.source_failures[source]
+
                     if admin:
-                        admin.log(f"⚠️ Feed error {source}: {str(e)[:40]}")
+                        admin.log(f"⚠️ Feed error {source} ({fails}/{MAX_SOURCE_FAILURES}): {str(e)[:40]}")
+
+                    # Auto-disable after MAX_SOURCE_FAILURES consecutive failures
+                    if fails >= MAX_SOURCE_FAILURES:
+                        disable_source(source)
+                        self.source_failures[source] = 0
+                        if admin:
+                            admin.log(f"🔴 Source auto-disabled: {source}")
+                            await admin.report_error("source_disabled", f"{source} disabled after {MAX_SOURCE_FAILURES} consecutive failures")
 
         if not new_articles:
             if admin:
@@ -364,16 +411,12 @@ class Intel(commands.Cog):
         ])
 
         try:
-            response = client_groq.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": PROMPT_CYCLE},
-                    {"role": "user", "content": f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{context}"}
-                ],
-                max_tokens=600,
-                temperature=0.2
+            raw = await self.call_ai(
+                system=PROMPT_CYCLE,
+                user=f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n\n{context}",
+                max_tokens=600
             )
-            await self.update_cycle_report(main_channel, response.choices[0].message.content, new_articles)
+            await self.update_cycle_report(main_channel, raw, new_articles)
 
             if admin:
                 admin.increment_cycle()
