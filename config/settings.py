@@ -114,7 +114,7 @@ REGION RULES — follow strictly, geography does not override these rules:
   "key_actors": ["actor1"],
   "precise_location": "city or specific region",
   "confidence": "HIGH/MEDIUM/LOW",
-  "reason": "one technical sentence"
+  "reason": "one technical sentence describing the situation — never start with 'The article', write as an intelligence assessment e.g. 'US Navy countermine assets repositioning amid escalating Iranian mining threat in the Strait of Hormuz'"
 }"""
 
 PROMPT_CYCLE = """You are VEGA. Generate a brief cycle report in plain prose. No markdown, no bold, no bullet points, no emojis, no headers.
