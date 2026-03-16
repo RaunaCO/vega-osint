@@ -92,9 +92,16 @@ class Intel(commands.Cog):
         if article.get("translated") and article.get("original_title"):
             title = f"{article['title'][:220]} *(translated)*"
 
-        # Description = AI reason only (already synthesized) + Read more link
-        # Avoids the verbose RSS summary and the duplicate italic reason
-        description = f"{reason}\n\n[→ Read more]({article['link']})" if reason else f"[→ Read more]({article['link']})"
+        # Short summary — cut at last full stop within 200 chars
+        raw = article["summary"][:200]
+        cut = raw.rfind(". ")
+        short_summary = raw[:cut + 1] if cut > 80 else raw
+
+        # Description: brief event summary + AI reason in italics + read more link
+        description = short_summary
+        if reason:
+            description += f"\n\n*{reason}*"
+        description += f"\n\n[→ {article['source']}]({article['link']})"
 
         embed = discord.Embed(
             title=title,           # no url= so the title is plain text, not a hyperlink
