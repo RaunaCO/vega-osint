@@ -18,7 +18,7 @@ from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
 
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 # Max consecutive failures before a source is auto-disabled in sources.json
 MAX_SOURCE_FAILURES = 3

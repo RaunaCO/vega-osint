@@ -10,7 +10,7 @@ from config.settings import (
 )
 
 client_groq = Groq(api_key=GROQ_API_KEY)
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent""
 
 BRIEFING_HOURS = 24   # How many hours back the daily briefing covers
 
