@@ -9,8 +9,7 @@ from datetime import datetime
 from groq import Groq
 from config.settings import (
     GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
-    KEYWORDS, CRITICAL_KEYWORDS,
-    GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
+    KEYWORDS, GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
 )
 from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate, extract_image
 from utils.database import save_article, save_source_status
@@ -92,28 +91,22 @@ class Intel(commands.Cog):
         if article.get("translated") and article.get("original_title"):
             title = f"{article['title'][:220]} *(translated)*"
 
-        # Short summary — cut at last full stop within 200 chars
         raw = article["summary"][:200]
         cut = raw.rfind(". ")
         short_summary = raw[:cut + 1] if cut > 80 else raw
 
-        # Description: brief event summary + AI reason in italics + read more link
         description = short_summary
         if reason:
             description += f"\n\n*{reason}*"
         description += f"\n\n[→ {article['source']}]({article['link']})"
 
         embed = discord.Embed(
-            title=title,           # no url= so the title is plain text, not a hyperlink
+            title=title,
             description=description,
             color=color_by_level(level),
             timestamp=datetime.utcnow()
         )
-
-        # Author line = all classification context in one clean line
         embed.set_author(name=f"{badge(level)}  {region}  ·  {level}  ·  {category}")
-
-        # Three inline fields — everything useful, nothing redundant
         embed.add_field(name="Location",   value=location[:60], inline=True)
         embed.add_field(name="Actors",     value=actors[:80],   inline=True)
         embed.add_field(name="Confidence", value=confidence,    inline=True)
@@ -155,7 +148,6 @@ class Intel(commands.Cog):
 
             embed = discord.Embed(
                 title=article["title"][:250],
-                url=article["link"],
                 description=response.choices[0].message.content,
                 color=color_by_level(level),
                 timestamp=datetime.utcnow()
@@ -224,7 +216,6 @@ class Intel(commands.Cog):
                 try:
                     async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                         feed = feedparser.parse(await resp.text())
-                        source_hits = 0
                         for entry in feed.entries[:2]:
                             title    = entry.get("title", "")
                             link     = entry.get("link", "")
@@ -251,7 +242,6 @@ class Intel(commands.Cog):
                                     "image": image,
                                     "translated": was_translated
                                 })
-                                source_hits += 1
 
                                 if admin:
                                     admin.log(f"🟠 [{source}] {title_en[:45]}...")
@@ -332,12 +322,6 @@ class Intel(commands.Cog):
     async def before_monitor(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(30)
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Scan all sources right now")
-    async def scanfeed(self, ctx):
-        await ctx.defer()
-        await ctx.respond("📡 **VEGA** — Scanning sources...")
-        await self.run_scan()
 
 def setup(bot):
     bot.add_cog(Intel(bot))

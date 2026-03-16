@@ -3,10 +3,6 @@ from discord.ext import commands, tasks
 from datetime import datetime, timezone
 from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID
 from utils.helpers import load_seen
-import os
-import json
-
-SEEN_PATH = "data/seen.json"
 
 class VegaAdmin(commands.Cog):
     def __init__(self, bot):
@@ -111,7 +107,7 @@ class VegaAdmin(commands.Cog):
             if region not in active_regions or level == "CRITICAL":
                 active_regions[region] = level
 
-        badge = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+        level_badge = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
         global_level = (
             "CRITICAL" if "CRITICAL" in active_regions.values() else
             "HIGH"     if "HIGH"     in active_regions.values() else
@@ -126,26 +122,18 @@ class VegaAdmin(commands.Cog):
             timestamp=now
         )
 
-        # Active regions
         regions_text = "\n".join([
-            f"{badge.get(level, '⚪')} {region} — {level}"
+            f"{level_badge.get(level, '⚪')} {region} — {level}"
             for region, level in active_regions.items()
         ]) if active_regions else "*No recent activity*"
         embed.add_field(name="Active Regions", value=regions_text, inline=False)
 
-        # Latest entries
         articles_text = "\n".join([
-            f"`{a.get('time', '--:--')}` {badge.get(a.get('level','MEDIUM'),'⚪')} {a.get('title','')[:60]}…"
+            f"`{a.get('time', '--:--')}` {level_badge.get(a.get('level','MEDIUM'),'⚪')} {a.get('title','')[:60]}…"
             for a in self.recent_articles[:5]
         ]) if self.recent_articles else "*Waiting for first cycle…*"
         embed.add_field(name="Latest Entries", value=articles_text, inline=False)
 
-        # Commands — plain text, no block
-        commands_text = (
-            "`/scanfeed` `/sitrep` `/briefing` `/analyze` `/summary`\n"
-            "`/userrecon` `/pause` `/interval` `/clear` `/purge`"
-        )
-        embed.add_field(name="Commands", value=commands_text, inline=False)
         embed.set_footer(text="VEGA  ·  auto-refresh 30s")
         return embed
 
@@ -232,109 +220,6 @@ class VegaAdmin(commands.Cog):
     @update_command_center.before_loop
     async def before_command_center(self):
         await self.bot.wait_until_ready()
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Show current system status")
-    async def status(self, ctx):
-        await ctx.respond(embed=self.build_status_embed())
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Pause or resume the automatic monitor")
-    async def pause(self, ctx, action: discord.Option(str, choices=["pause", "resume"])):
-        intel_cog = self.bot.cogs.get("Intel")
-        if not intel_cog:
-            await ctx.respond("⚠️ **VEGA** — Intel module not found.")
-            return
-        if action == "pause":
-            if intel_cog.monitor.is_running():
-                intel_cog.monitor.cancel()
-                await ctx.respond("Monitor paused.")
-            else:
-                await ctx.respond("Monitor was already paused.")
-        elif action == "resume":
-            if not intel_cog.monitor.is_running():
-                intel_cog.monitor.start()
-                await ctx.respond("Monitor resumed.")
-            else:
-                await ctx.respond("Monitor was already active.")
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Clear article memory and reset seen list")
-    async def clear(self, ctx):
-        if os.path.exists(SEEN_PATH):
-            os.remove(SEEN_PATH)
-        intel_cog = self.bot.cogs.get("Intel")
-        if intel_cog:
-            intel_cog.seen = set()
-        embed = discord.Embed(
-            title="Memory Cleared",
-            description="Article history reset. Next cycle will scan all sources from scratch.",
-            color=0xff8800,
-            timestamp=datetime.now(timezone.utc)
-        )
-        embed.set_footer(text="VEGA  ·  operation complete")
-        await ctx.respond(embed=embed)
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Change the monitor scan interval without restarting")
-    async def interval(self, ctx, minutes: discord.Option(int, description="Minutes between cycles (minimum 2)")):
-        if minutes < 2:
-            await ctx.respond("⚠️ **VEGA** — Minimum interval is 2 minutes.")
-            return
-        intel_cog = self.bot.cogs.get("Intel")
-        if not intel_cog:
-            await ctx.respond("⚠️ **VEGA** — Intel module not found.")
-            return
-        intel_cog.monitor.change_interval(minutes=minutes)
-        embed = discord.Embed(
-            title="Interval Updated",
-            description=f"Monitor will scan every **{minutes} minutes**.",
-            color=0x00cc44,
-            timestamp=datetime.now(timezone.utc)
-        )
-        embed.set_footer(text="VEGA  ·  configuration updated")
-        await ctx.respond(embed=embed)
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Purge all messages from a channel")
-    async def purge(self, ctx, channel: discord.Option(discord.TextChannel, description="Channel to clear")):
-        await ctx.defer()
-        protected = [STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID]
-        if channel.id in protected:
-            await ctx.respond("⚠️ **VEGA** — That channel is protected.")
-            return
-        try:
-            deleted = await channel.purge(limit=500)
-            if channel.id == CONFLICT_CHANNEL_ID:
-                intel_cog = self.bot.cogs.get("Intel")
-                if intel_cog:
-                    intel_cog.cycle_message = None
-            embed = discord.Embed(
-                title="Purge Complete",
-                description=f"Deleted **{len(deleted)} messages** from {channel.mention}.",
-                color=0xff8800,
-                timestamp=datetime.now(timezone.utc)
-            )
-            embed.set_footer(text="VEGA  ·  operation complete")
-            await ctx.respond(embed=embed)
-            self.log(f"🗑️ Purge in {channel.name} — {len(deleted)} messages deleted")
-        except Exception as e:
-            await ctx.respond(f"⚠️ **VEGA** — Error: `{e}`")
-
-    @discord.slash_command(guild_ids=[GUILD_ID], description="Show active Vega modules")
-    async def modules(self, ctx):
-        with open("modules.json", "r") as f:
-            config = json.load(f)["modules"]
-
-        embed = discord.Embed(
-            title="System Modules",
-            color=0x336699,
-            timestamp=datetime.now(timezone.utc)
-        )
-        for name, data in config.items():
-            status = "Active" if data["enabled"] else "Inactive"
-            embed.add_field(
-                name=f"{name}  ·  {status}",
-                value=data["description"],
-                inline=False
-            )
-        embed.set_footer(text="VEGA  ·  edit modules.json to enable/disable")
-        await ctx.respond(embed=embed)
 
 def setup(bot):
     bot.add_cog(VegaAdmin(bot))

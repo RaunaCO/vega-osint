@@ -7,11 +7,9 @@ from utils.database import initialize_db
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = int(os.getenv("GUILD_ID"))
 
 asyncio.set_event_loop(asyncio.new_event_loop())
 
-# Initialize database on startup
 initialize_db()
 
 intents = discord.Intents.default()
@@ -20,7 +18,6 @@ intents.members = True
 
 bot = discord.Bot(intents=intents)
 
-# Load modules from modules.json
 with open("modules.json", "r") as f:
     modules = json.load(f)["modules"]
 
@@ -39,10 +36,5 @@ async def on_ready():
     print(f"  Active modules: {', '.join(loaded_modules)}")
     print("  Intelligence protocol initiated.")
     print("=" * 40)
-
-@bot.slash_command(guild_ids=[GUILD_ID], description="Check if Vega is operational")
-async def ping(ctx):
-    latency = round(bot.latency * 1000)
-    await ctx.respond(f"🟢 **VEGA OPERATIONAL** — Latency: `{latency}ms`")
 
 bot.run(TOKEN)

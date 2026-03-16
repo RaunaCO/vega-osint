@@ -5,19 +5,9 @@
       "description": "Real-time news monitoring and AI-powered conflict classification",
       "cog": "cogs.intel"
     },
-    "ai_brain": {
-      "enabled": true,
-      "description": "AI brain — SITREPs, intelligence briefings and analysis",
-      "cog": "cogs.ai_brain"
-    },
-    "osint": {
-      "enabled": true,
-      "description": "OSINT tools — username reconnaissance across platforms",
-      "cog": "cogs.osint"
-    },
     "admin": {
       "enabled": true,
-      "description": "System administration — live panels and control commands",
+      "description": "Live system panels — status, logs, errors, global situation",
       "cog": "cogs.admin"
     }
   }
