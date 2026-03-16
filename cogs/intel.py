@@ -92,14 +92,12 @@ class Intel(commands.Cog):
         if article.get("translated") and article.get("original_title"):
             title = f"{article['title'][:220]} *(translated)*"
 
-        # Description = summary then reason in italics — no labels needed
-        description = article["summary"][:400]
-        if reason:
-            description += f"\n\n*{reason}*"
+        # Description = AI reason only (already synthesized) + Read more link
+        # Avoids the verbose RSS summary and the duplicate italic reason
+        description = f"{reason}\n\n[→ Read more]({article['link']})" if reason else f"[→ Read more]({article['link']})"
 
         embed = discord.Embed(
-            title=title,
-            url=article["link"],
+            title=title,           # no url= so the title is plain text, not a hyperlink
             description=description,
             color=color_by_level(level),
             timestamp=datetime.utcnow()
