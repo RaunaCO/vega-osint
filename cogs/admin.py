@@ -1,21 +1,24 @@
 import discord
 from discord.ext import commands, tasks
-from datetime import datetime, timezone
-from config.settings import GUILD_ID, STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, CONFLICT_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID
+from datetime import datetime, timezone, timedelta
+from config.settings import STATUS_CHANNEL_ID, LOGS_CHANNEL_ID, COMMAND_CENTER_ID, VEGA_ERRORS_CHANNEL_ID
 from utils.helpers import load_seen
 
 class VegaAdmin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.start_time = datetime.now(timezone.utc)
+        self.start_time      = datetime.now(timezone.utc)
         self.cycles_completed = 0
-        self.last_scan = "Never"
-        self.status_message = None
-        self.logs_message = None
-        self.command_center_message = None
-        self.errors_message = None
-        self.log_events = []
-        self.error_log = []
+        self.last_scan_time  = None   # datetime object for countdown
+        self.last_scan       = "Never"
+        self.sources_active  = 0
+        self.articles_today  = 0
+        self.status_message          = None
+        self.logs_message            = None
+        self.command_center_message  = None
+        self.errors_message          = None
+        self.log_events      = []
+        self.error_log       = []
         self.recent_articles = []
         self.update_status.start()
         self.update_logs.start()
@@ -30,7 +33,13 @@ class VegaAdmin(commands.Cog):
 
     def increment_cycle(self):
         self.cycles_completed += 1
-        self.last_scan = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        self.last_scan_time   = datetime.now(timezone.utc)
+        self.last_scan        = self.last_scan_time.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def set_scan_stats(self, sources: int, articles_today: int):
+        """Called by intel.py after each cycle to update live stats."""
+        self.sources_active = sources
+        self.articles_today = articles_today
 
     def log(self, event: str):
         time = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -49,34 +58,61 @@ class VegaAdmin(commands.Cog):
         if len(self.error_log) > 10:
             self.error_log.pop()
 
+    def _next_scan_str(self) -> str:
+        """Calculate time until next scan as a human-readable string."""
+        intel_cog = self.bot.cogs.get("Intel")
+        if not intel_cog or not intel_cog.monitor.is_running():
+            return "Paused"
+        if not self.last_scan_time:
+            return "Pending"
+        interval_minutes = intel_cog.monitor.minutes
+        next_scan = self.last_scan_time + timedelta(minutes=interval_minutes)
+        remaining = next_scan - datetime.now(timezone.utc)
+        total_seconds = int(remaining.total_seconds())
+        if total_seconds <= 0:
+            return "Imminent"
+        m, s = divmod(total_seconds, 60)
+        return f"{m}m {s}s"
+
+    def _error_rate_str(self) -> str:
+        """Give a simple health indicator based on recent errors."""
+        if not self.error_log:
+            return "Healthy"
+        if len(self.error_log) >= 5:
+            return "Degraded"
+        return "Minor issues"
+
     def build_status_embed(self):
-        now = datetime.now(timezone.utc)
+        now    = datetime.now(timezone.utc)
         uptime = now - self.start_time
         hours, remainder = divmod(int(uptime.total_seconds()), 3600)
         minutes, seconds = divmod(remainder, 60)
-        seen = load_seen()
+        seen      = load_seen()
         intel_cog = self.bot.cogs.get("Intel")
         monitor_active = intel_cog.monitor.is_running() if intel_cog else False
-        interval = intel_cog.monitor.minutes if intel_cog else "N/A"
+        interval       = intel_cog.monitor.minutes if intel_cog else "N/A"
 
         embed = discord.Embed(
             title="System Status",
             color=0x00cc44 if monitor_active else 0xff8800,
             timestamp=now
         )
-        embed.add_field(name="Status",    value="Operational" if monitor_active else "Monitor paused", inline=True)
-        embed.add_field(name="Uptime",    value=f"{hours}h {minutes}m {seconds}s",                     inline=True)
-        embed.add_field(name="Cycles",    value=str(self.cycles_completed),                             inline=True)
-        embed.add_field(name="In memory", value=f"{len(seen)} articles",                                inline=True)
-        embed.add_field(name="Interval",  value=f"{interval} min",                                     inline=True)
-        embed.add_field(name="Last scan", value=self.last_scan,                                         inline=True)
-        embed.set_footer(text="VEGA  ·  auto-refresh 10s")
+        embed.add_field(name="Status",       value="Operational" if monitor_active else "Monitor paused", inline=True)
+        embed.add_field(name="Health",       value=self._error_rate_str(),                                inline=True)
+        embed.add_field(name="Uptime",       value=f"{hours}h {minutes}m {seconds}s",                    inline=True)
+        embed.add_field(name="Cycles",       value=str(self.cycles_completed),                            inline=True)
+        embed.add_field(name="Articles today", value=str(self.articles_today),                            inline=True)
+        embed.add_field(name="In memory",    value=f"{len(seen)} articles",                               inline=True)
+        embed.add_field(name="Sources",      value=f"{self.sources_active} active",                       inline=True)
+        embed.add_field(name="Interval",     value=f"{interval} min",                                     inline=True)
+        embed.add_field(name="Next scan",    value=self._next_scan_str(),                                 inline=True)
+        embed.set_footer(text=f"VEGA  ·  last scan: {self.last_scan}  ·  auto-refresh 10s")
         return embed
 
     def build_logs_embed(self):
-        now = datetime.now(timezone.utc)
+        now    = datetime.now(timezone.utc)
         events = "\n".join(self.log_events) if self.log_events else "*No activity recorded*"
-        embed = discord.Embed(
+        embed  = discord.Embed(
             title="Activity Log",
             description=events,
             color=0x336699,
@@ -86,9 +122,9 @@ class VegaAdmin(commands.Cog):
         return embed
 
     def build_errors_embed(self):
-        now = datetime.now(timezone.utc)
+        now    = datetime.now(timezone.utc)
         errors = "\n".join(self.error_log) if self.error_log else "*No errors recorded*"
-        embed = discord.Embed(
+        embed  = discord.Embed(
             title="Error Monitor",
             description=errors,
             color=0xcc2200 if self.error_log else 0x00cc44,
@@ -100,6 +136,7 @@ class VegaAdmin(commands.Cog):
     def build_command_center_embed(self):
         now = datetime.now(timezone.utc)
 
+        # Derive global threat level from recent articles
         active_regions = {}
         for a in self.recent_articles:
             region = a.get("region", "Global")
@@ -107,13 +144,19 @@ class VegaAdmin(commands.Cog):
             if region not in active_regions or level == "CRITICAL":
                 active_regions[region] = level
 
-        level_badge = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+        level_badge  = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
         global_level = (
             "CRITICAL" if "CRITICAL" in active_regions.values() else
             "HIGH"     if "HIGH"     in active_regions.values() else
             "MEDIUM"   if active_regions else "LOW"
         )
-        global_color = {"CRITICAL": 0xcc2200, "HIGH": 0xdd5500, "MEDIUM": 0xccaa00, "LOW": 0x448844}.get(global_level, 0x336699)
+        global_color = {
+            "CRITICAL": 0xcc2200, "HIGH": 0xdd5500,
+            "MEDIUM":   0xccaa00, "LOW":  0x448844
+        }.get(global_level, 0x336699)
+
+        intel_cog      = self.bot.cogs.get("Intel")
+        monitor_active = intel_cog.monitor.is_running() if intel_cog else False
 
         embed = discord.Embed(
             title="Global Situation",
@@ -122,12 +165,22 @@ class VegaAdmin(commands.Cog):
             timestamp=now
         )
 
+        # System snapshot — compact inline fields
+        embed.add_field(name="Monitor",       value="Active" if monitor_active else "Paused", inline=True)
+        embed.add_field(name="Next scan",     value=self._next_scan_str(),                    inline=True)
+        embed.add_field(name="Articles today",value=str(self.articles_today),                 inline=True)
+        embed.add_field(name="Sources",       value=f"{self.sources_active} active",          inline=True)
+        embed.add_field(name="Cycles",        value=str(self.cycles_completed),               inline=True)
+        embed.add_field(name="Health",        value=self._error_rate_str(),                   inline=True)
+
+        # Active regions
         regions_text = "\n".join([
             f"{level_badge.get(level, '⚪')} {region} — {level}"
             for region, level in active_regions.items()
         ]) if active_regions else "*No recent activity*"
         embed.add_field(name="Active Regions", value=regions_text, inline=False)
 
+        # Latest entries
         articles_text = "\n".join([
             f"`{a.get('time', '--:--')}` {level_badge.get(a.get('level','MEDIUM'),'⚪')} {a.get('title','')[:60]}…"
             for a in self.recent_articles[:5]

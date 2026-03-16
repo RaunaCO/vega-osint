@@ -9,12 +9,23 @@ from datetime import datetime
 from groq import Groq
 from config.settings import (
     GUILD_ID, CONFLICT_CHANNEL_ID, CRITICAL_CHANNEL_ID, REGION_CHANNELS,
-    KEYWORDS, GROQ_API_KEY, GROQ_MODEL, PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
+    KEYWORDS, CRITICAL_KEYWORDS, GROQ_API_KEY, GROQ_MODEL,
+    PROMPT_CLASSIFY, PROMPT_CYCLE, PROMPT_ALERT
 )
 from utils.helpers import strip_html, load_seen, save_seen, detect_and_translate, extract_image
 from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
+
+# Topics that slip through global sources but are not intelligence-relevant
+EXCLUDE_KEYWORDS = [
+    "scored", "goal", "goals", "match", "tournament", "championship",
+    "league", "fixture", "standings", "transfer", "signing",
+    "album", "concert", "tour", "box office", "award", "oscar",
+    "grammy", "celebrity", "kardashian", "weather forecast",
+    "recipe", "fashion week", "stock market", "earnings report",
+    "quarterly results", "merger", "acquisition"
+]
 
 def load_sources() -> dict:
     try:
@@ -36,11 +47,58 @@ def color_by_level(level: str) -> int:
 def badge(level: str) -> str:
     return {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(level, "⚪")
 
+def score_article(title: str, summary: str) -> int:
+    """
+    Score an article by relevance. Returns an integer score.
+    - Critical keyword in title  = 5 pts (instant pass)
+    - Regular keyword in title   = 2 pts each
+    - Regular keyword in summary = 1 pt each
+    Minimum passing score: 3
+    """
+    title_low   = title.lower()
+    summary_low = summary.lower()
+
+    # Instant pass on critical keyword in title
+    if any(k in title_low for k in CRITICAL_KEYWORDS):
+        return 10
+
+    score = 0
+    for k in KEYWORDS:
+        kl = k.lower()
+        if kl in title_low:
+            score += 2
+        elif kl in summary_low:
+            score += 1
+
+    return score
+
+def is_excluded(title: str, summary: str) -> bool:
+    """Return True if the article is clearly non-intelligence content."""
+    combined = (title + " " + summary).lower()
+    return any(ex in combined for ex in EXCLUDE_KEYWORDS)
+
+def clean_summary(raw: str) -> str:
+    """
+    Strip HTML, collapse whitespace, cut at last full stop within 220 chars.
+    Returns a clean 1-2 sentence summary or empty string.
+    """
+    text = strip_html(raw).strip()
+    # Collapse multiple spaces/newlines
+    text = " ".join(text.split())
+    if not text:
+        return ""
+    # Cut at last full stop within 220 chars to avoid mid-sentence truncation
+    chunk = text[:220]
+    cut = chunk.rfind(". ")
+    return chunk[:cut + 1] if cut > 80 else chunk
+
 class Intel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.seen = load_seen()
         self.cycle_message = None
+        self.articles_today = 0
+        self.sources_last_scan = 0
         self.monitor.start()
 
     def cog_unload(self):
@@ -68,7 +126,7 @@ class Intel(commands.Cog):
                 "level": "MEDIUM", "is_critical": False, "region": "Global",
                 "category": "Other", "key_actors": [],
                 "precise_location": "Not specified", "confidence": "LOW",
-                "reason": "Automatic classification failed"
+                "reason": ""
             }
 
     async def post_article_embed(self, article: dict, classification: dict):
@@ -91,12 +149,9 @@ class Intel(commands.Cog):
         if article.get("translated") and article.get("original_title"):
             title = f"{article['title'][:220]} *(translated)*"
 
-        raw = article["summary"][:200]
-        cut = raw.rfind(". ")
-        short_summary = raw[:cut + 1] if cut > 80 else raw
-
-        description = short_summary
-        if reason:
+        # Build description — summary always present, reason only if meaningful
+        description = article["short_summary"]
+        if reason and "classification failed" not in reason.lower():
             description += f"\n\n*{reason}*"
         description += f"\n\n[→ {article['source']}]({article['link']})"
 
@@ -207,6 +262,7 @@ class Intel(commands.Cog):
 
         new_articles = []
         news_feeds = load_sources()
+        self.sources_last_scan = len(news_feeds)
 
         if admin:
             admin.log(f"📚 Loaded {len(news_feeds)} sources")
@@ -219,38 +275,51 @@ class Intel(commands.Cog):
                         for entry in feed.entries[:2]:
                             title    = entry.get("title", "")
                             link     = entry.get("link", "")
-                            summary  = strip_html(entry.get("summary", ""))[:400]
+                            raw_sum  = entry.get("summary", "")
                             pub_date = entry.get("published", "")[:30] if entry.get("published") else "N/A"
                             image    = extract_image(entry)
 
                             if link in self.seen:
                                 continue
-                            if any(k in title.lower() for k in KEYWORDS):
-                                self.seen.add(link)
-                                save_seen(self.seen)
 
-                                title_en, was_translated = detect_and_translate(title)
-                                summary_en, _ = detect_and_translate(summary)
+                            summary       = strip_html(raw_sum)[:400]
+                            short_summary = clean_summary(raw_sum)
 
-                                new_articles.append({
-                                    "title": title_en,
-                                    "original_title": title if was_translated else None,
-                                    "summary": summary_en,
-                                    "source": source,
-                                    "link": link,
-                                    "date": pub_date,
-                                    "image": image,
-                                    "translated": was_translated
+                            # Skip excluded topics
+                            if is_excluded(title, summary):
+                                continue
+
+                            # Score-based filter — title + summary, minimum 3 pts
+                            if score_article(title, summary) < 3:
+                                continue
+
+                            self.seen.add(link)
+                            save_seen(self.seen)
+
+                            title_en, was_translated = detect_and_translate(title)
+                            summary_en, _            = detect_and_translate(summary)
+                            short_en, _              = detect_and_translate(short_summary) if short_summary else (short_summary, False)
+
+                            new_articles.append({
+                                "title":          title_en,
+                                "original_title": title if was_translated else None,
+                                "summary":        summary_en,
+                                "short_summary":  short_en,
+                                "source":         source,
+                                "link":           link,
+                                "date":           pub_date,
+                                "image":          image,
+                                "translated":     was_translated
+                            })
+
+                            if admin:
+                                admin.log(f"🟠 [{source}] {title_en[:45]}...")
+                                admin.log_article({
+                                    "title":  title_en,
+                                    "level":  "MEDIUM",
+                                    "region": "Global",
+                                    "time":   datetime.utcnow().strftime("%H:%M")
                                 })
-
-                                if admin:
-                                    admin.log(f"🟠 [{source}] {title_en[:45]}...")
-                                    admin.log_article({
-                                        "title": title_en,
-                                        "level": "MEDIUM",
-                                        "region": "Global",
-                                        "time": datetime.utcnow().strftime("%H:%M")
-                                    })
 
                         save_source_status(source, True)
 
@@ -266,6 +335,7 @@ class Intel(commands.Cog):
             return
 
         new_articles = new_articles[:5]
+        self.articles_today += len(new_articles)
 
         if admin:
             admin.log(f"🧠 Classifying {len(new_articles)} articles...")
@@ -278,10 +348,10 @@ class Intel(commands.Cog):
 
             if admin:
                 admin.log_article({
-                    "title": article["title"],
-                    "level": classification.get("level", "MEDIUM"),
+                    "title":  article["title"],
+                    "level":  classification.get("level", "MEDIUM"),
                     "region": classification.get("region", "Global"),
-                    "time": datetime.utcnow().strftime("%H:%M")
+                    "time":   datetime.utcnow().strftime("%H:%M")
                 })
 
             if classification["level"] in ["CRITICAL", "HIGH"]:
@@ -307,6 +377,7 @@ class Intel(commands.Cog):
 
             if admin:
                 admin.increment_cycle()
+                admin.set_scan_stats(self.sources_last_scan, self.articles_today)
                 admin.log(f"✅ Cycle complete — {len(new_articles)} articles processed")
         except Exception as e:
             print(f"[VEGA] Cycle report error: {e}")
