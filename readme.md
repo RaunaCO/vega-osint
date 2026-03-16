@@ -35,30 +35,29 @@ Think of it as a lightweight, self-hosted alternative to commercial threat intel
 ### Real-Time Intelligence Feed
 - Monitors **37+ verified sources** across 5 categories and 6 regions
 - AI-powered classification: `CRITICAL` `HIGH` `MEDIUM` `LOW`
-- Automatic routing to regional channels — including **Asia-Pacific / Oceania**
-- Strict region rules prevent misclassification (e.g. Iran always routes to Middle East)
+- Automatic routing to regional channels including **Asia-Pacific / Oceania**
+- Strict region rules prevent misclassification (Iran and Iraq always route to Middle East)
 - Critical alerts with `@everyone` for maximum-priority events
 - Automatic translation to English for non-English sources
-- Source health tracking — knows which feeds are up or down
+- Source health tracking per scan cycle
 
 ### AI-Powered Analysis
 - **SITREPs** — Structured situation reports based on real news
-- **Intelligence Briefings** — Chronological regional summaries
+- **Intelligence Briefings** — Regional summaries in clean prose
 - **Text Analysis** — Geopolitical analysis of any text
 - **Executive Summaries** — Quick synthesis of the latest feed
-- Powered by **LLaMA 3.3 70B** via Groq (free tier)
+- Powered by **LLaMA 3.3 70B** via Groq (free tier, 100k tokens/day)
 
 ### OSINT Tools
 - Username reconnaissance across 6 major platforms
 - Results automatically archived to `#osint-lab`
-- Extensible — new platforms can be added in minutes
 
 ### System Administration
-- **4 live panels** — Status, Activity Log, Error Monitor, Global Situation
-- Module system — enable/disable capabilities without touching code
-- Source system — manage 37+ feeds via `sources.json`
+- 4 live auto-updating panels: Status, Activity Log, Error Monitor, Global Situation
+- Module system — enable/disable capabilities via `modules.json`
+- Source system — manage all feeds via `sources.json`, no code changes needed
 - Persistent SQLite database — all intelligence survives restarts
-- Hot-reload interval — change scan frequency without restarting
+- Hot-reload scan interval — change frequency without restarting
 
 ---
 
@@ -71,45 +70,20 @@ Think of it as a lightweight, self-hosted alternative to commercial threat intel
 
 ### Installation
 ```bash
-# Clone the repository
 git clone https://github.com/RaunaCO/vega-osint.git
 cd vega-osint
 
-# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate      # Windows
 
-# Install dependencies
 pip install py-cord python-dotenv aiohttp feedparser groq deep-translator langdetect
 
-# Configure environment
 cp .env.example .env
 # Edit .env with your credentials
 ```
 
-### Discord Server Setup
-```
-INFORMATION
-  #rules · #announcements · #changelog · #events
-
-GLOBAL INTEL
-  #conflict-watch · #critical-alerts
-
-REGIONAL (one per region)
-  #[region]-feed · #[region]-discussion
-
-OPERATIONS
-  #command-center · #sitrep-request · #analysis-board · #osint-lab
-
-AI LAB
-  #ai-analysis · #briefing-room · #mission-logs · #evidence-vault
-
-SYSTEM (admin only)
-  #vega-status · #vega-logs · #vega-errors
-```
-
-### Start VEGA
+### Start
 ```bash
 python main.py
 ```
@@ -146,36 +120,32 @@ python main.py
 ---
 
 ## Architecture
+
 ```
 vega-osint/
 ├── main.py                 # Entry point — loads modules from modules.json
-├── modules.json            # Module configuration
-├── sources.json            # Intelligence source definitions (37+ sources)
+├── modules.json            # Module on/off configuration
+├── sources.json            # 37+ intelligence sources with region/category/enabled flags
+├── .env                    # Secrets — never committed to git
 ├── .env.example            # Environment variable template
 ├── config/
-│   └── settings.py         # All configuration, constants and AI prompts
-├── cogs/                   # Bot modules
-│   ├── intel.py            # News monitoring, AI classification, cycle reports
-│   ├── ai_brain.py         # SITREPs, briefings, analysis
+│   └── settings.py         # Channel IDs, AI model config, keywords, prompts
+├── cogs/
+│   ├── intel.py            # RSS monitoring, AI classification, article routing
+│   ├── ai_brain.py         # SITREPs, briefings, analysis, summaries
 │   ├── osint.py            # Username reconnaissance
-│   └── admin.py            # Live panels, system control
+│   └── admin.py            # Live panels, system control commands
 ├── utils/
-│   ├── helpers.py          # Shared utilities
-│   └── database.py         # SQLite data layer
+│   ├── helpers.py          # strip_html, translate, load_seen, extract_image, search_relevant_news
+│   └── database.py         # SQLite — articles, sitreps, events, source_health tables
 └── data/
-    └── vega.db             # Persistent intelligence database
-```
-
-### Module System
-```json
-{
-  "modules": {
-    "intel": { "enabled": true }
-  }
-}
+    ├── vega.db             # Persistent intelligence database
+    └── seen.json           # Fallback article deduplication (used if DB unavailable)
 ```
 
 ### Source System
+All sources are managed in `sources.json`. No code changes needed to add, remove, or disable a source.
+
 ```json
 {
   "sources": [
@@ -190,7 +160,16 @@ vega-osint/
 }
 ```
 
-To add a new source just add an entry to `sources.json` — no code changes needed.
+### Module System
+Enable or disable any cog without touching code.
+
+```json
+{
+  "modules": {
+    "intel": { "enabled": true, "cog": "cogs.intel" }
+  }
+}
+```
 
 ---
 
@@ -206,7 +185,7 @@ The War Zone, Military Times, Defense News, War on the Rocks, IISS, Bellingcat
 Foreign Policy, Council on Foreign Relations, Brookings, South China Morning Post, The Diplomat, Nikkei Asia, Asia Times, Stimson Center, Lowy Institute
 
 ### Asia-Pacific & Oceania
-Channel NewsAsia, ABC News Australia, RNZ World, Times of India, South China Morning Post, The Diplomat, Nikkei Asia, Asia Times, Lowy Institute
+Channel NewsAsia, ABC News Australia, RNZ World, Times of India, The Diplomat, Nikkei Asia, Asia Times, Lowy Institute
 
 ### Government & Official
 UN News, NATO News, US State Department
@@ -218,8 +197,8 @@ Financial Times, Bloomberg Politics
 
 ## Region Coverage
 
-| Region | Countries / Areas |
-|--------|-------------------|
+| Region | Coverage |
+|--------|----------|
 | Middle East | Israel, Palestine, Iran, Iraq, Syria, Lebanon, Jordan, Yemen, Gulf states, Egypt, Turkey |
 | Europe | Russia, Ukraine, NATO Europe, Balkans, Caucasus |
 | Africa | Sub-Saharan Africa, North Africa, Sahel, Horn of Africa |
@@ -227,11 +206,12 @@ Financial Times, Bloomberg Politics
 | Americas | North America, Central America, South America, Caribbean |
 | Global | Events spanning multiple regions |
 
-> **Note:** Iran and Iraq are always classified as Middle East regardless of geographic ambiguity.
+> Iran and Iraq are always classified as Middle East regardless of geographic context.
 
 ---
 
 ## Environment Variables
+
 ```env
 DISCORD_TOKEN=
 GUILD_ID=
@@ -260,17 +240,22 @@ REGION_AMERICAS_ID=
 
 ## Changelog
 
+### v1.4 — March 2026
+- Codebase cleanup: removed dead `NEWS_FEEDS` static dict from `settings.py`
+- `search_relevant_news()` in `helpers.py` now reads `sources.json` directly — uses all 37 sources instead of 10
+- Removed `exportproject.py` from the repository
+- All AI prompts rewritten to output clean prose — no markdown headers, bold, or bullet points in cycle reports, alerts, or briefings
+
 ### v1.3 — March 2026
 - Expanded source database from 30 to **37 sources**
 - Added **Asia-Pacific / Oceania** regional coverage: ABC News Australia, RNZ World, Channel NewsAsia, The Diplomat, Nikkei Asia, Asia Times, Lowy Institute
 - Renamed `Asia` region to `Asia-Pacific` across the entire system
-- Strict AI classifier region rules — prevents Middle East events from routing to Asia-Pacific
-- Redesigned all Discord embeds with **dark ops aesthetic**: monospace data blocks, clean `//` separators, no decorative emoji in labels
-- Added new geopolitical keywords for Oceania and Indo-Pacific monitoring
+- Strict AI classifier region rules — prevents Middle East events routing to Asia-Pacific
+- Redesigned all Discord embeds: clean author line, inline fields, source-named article links, no decorative blocks
 
 ### v1.2
 - SQLite persistent database
-- Live panels (status, logs, errors, command center)
+- Live panels: status, logs, errors, command center
 - Source health tracking
 
 ### v1.1
@@ -279,14 +264,14 @@ REGION_AMERICAS_ID=
 - Critical alerts with @everyone
 
 ### v1.0
-- Initial release — RSS monitoring, basic Discord bot
+- Initial release
 
 ---
 
 ## Roadmap
 
 ### Immediate
-- [ ] `/stats` command — total articles, by region, by level, total SITREPs
+- [ ] `/stats` — total articles, by region, by level, total SITREPs
 - [ ] Evidence Vault — file metadata analysis (images, PDFs)
 - [ ] `/chat` — free AI conversation with session memory
 
@@ -316,11 +301,9 @@ REGION_AMERICAS_ID=
 3. Commit using Conventional Commits: `feat(module): description`
 4. Push and open a Pull Request
 
-**Adding a new intelligence source:**
-Add an entry to `sources.json` — no code changes needed.
+**Adding a new source:** edit `sources.json` — no code changes needed.
 
-**Adding a new module:**
-Create `cogs/your_module.py`, add it to `modules.json`, document commands here.
+**Adding a new module:** create `cogs/your_module.py`, register it in `modules.json`.
 
 ---
 
