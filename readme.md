@@ -24,7 +24,7 @@
 
 VEGA is the intelligence engine powering **Astral Network** — an open-source platform for real-time geopolitical monitoring, conflict analysis, and OSINT research.
 
-It monitors 30+ verified intelligence sources simultaneously, classifies every article by threat level and region using AI, generates military-grade SITREPs, and maintains a persistent intelligence database — all accessible through Discord.
+It monitors 37+ verified intelligence sources simultaneously, classifies every article by threat level and region using AI, generates military-grade SITREPs, and maintains a persistent intelligence database — all accessible through Discord.
 
 Think of it as a lightweight, self-hosted alternative to commercial threat intelligence platforms like Palantir — completely free and open source.
 
@@ -32,30 +32,31 @@ Think of it as a lightweight, self-hosted alternative to commercial threat intel
 
 ## Features
 
-### 🔴 Real-Time Intelligence Feed
-- Monitors **30+ verified sources** across 5 categories
+### Real-Time Intelligence Feed
+- Monitors **37+ verified sources** across 5 categories and 6 regions
 - AI-powered classification: `CRITICAL` `HIGH` `MEDIUM` `LOW`
-- Automatic routing to regional channels
+- Automatic routing to regional channels — including **Asia-Pacific / Oceania**
+- Strict region rules prevent misclassification (e.g. Iran always routes to Middle East)
 - Critical alerts with `@everyone` for maximum-priority events
 - Automatic translation to English for non-English sources
 - Source health tracking — knows which feeds are up or down
 
-### 🧠 AI-Powered Analysis
+### AI-Powered Analysis
 - **SITREPs** — Structured situation reports based on real news
 - **Intelligence Briefings** — Chronological regional summaries
 - **Text Analysis** — Geopolitical analysis of any text
 - **Executive Summaries** — Quick synthesis of the latest feed
 - Powered by **LLaMA 3.3 70B** via Groq (free tier)
 
-### 🔍 OSINT Tools
+### OSINT Tools
 - Username reconnaissance across 6 major platforms
 - Results automatically archived to `#osint-lab`
 - Extensible — new platforms can be added in minutes
 
-### ⚙️ System Administration
+### System Administration
 - **4 live panels** — Status, Activity Log, Error Monitor, Global Situation
 - Module system — enable/disable capabilities without touching code
-- Source system — manage 30+ feeds via `sources.json`
+- Source system — manage 37+ feeds via `sources.json`
 - Persistent SQLite database — all intelligence survives restarts
 - Hot-reload interval — change scan frequency without restarting
 
@@ -89,31 +90,22 @@ cp .env.example .env
 
 ### Discord Server Setup
 ```
-📋 INFORMATION
+INFORMATION
   #rules · #announcements · #changelog · #events
 
-🔔 DISCORD SYSTEM
-  #community-updates · #safety-notifications · #mod-log
-
-💬 COMMUNITY
-  #general · #memes
-
-📡 GLOBAL INTEL
+GLOBAL INTEL
   #conflict-watch · #critical-alerts
 
-🌍 REGIONAL (one per region)
+REGIONAL (one per region)
   #[region]-feed · #[region]-discussion
 
-🔍 OPERATIONS
+OPERATIONS
   #command-center · #sitrep-request · #analysis-board · #osint-lab
 
-🧠 AI LAB
+AI LAB
   #ai-analysis · #briefing-room · #mission-logs · #evidence-vault
 
-🛠️ DEVELOPMENT
-  #dev-general · #dev-contributions · #dev-ideas
-
-⚙️ SYSTEM (admin only)
+SYSTEM (admin only)
   #vega-status · #vega-logs · #vega-errors
 ```
 
@@ -158,7 +150,7 @@ python main.py
 vega-osint/
 ├── main.py                 # Entry point — loads modules from modules.json
 ├── modules.json            # Module configuration
-├── sources.json            # Intelligence source definitions (30+ sources)
+├── sources.json            # Intelligence source definitions (37+ sources)
 ├── .env.example            # Environment variable template
 ├── config/
 │   └── settings.py         # All configuration, constants and AI prompts
@@ -188,10 +180,10 @@ vega-osint/
 {
   "sources": [
     {
-      "name": "BBC World",
-      "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+      "name": "ABC News Australia",
+      "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
       "category": "conflict",
-      "region": "Global",
+      "region": "Asia-Pacific",
       "enabled": true
     }
   ]
@@ -211,13 +203,31 @@ BBC World, Al Jazeera, DW World, Kyiv Independent, France 24, The Guardian, Midd
 The War Zone, Military Times, Defense News, War on the Rocks, IISS, Bellingcat
 
 ### Geopolitics & Diplomacy
-Foreign Policy, Council on Foreign Relations, Brookings, South China Morning Post, Stimson Center
+Foreign Policy, Council on Foreign Relations, Brookings, South China Morning Post, The Diplomat, Nikkei Asia, Asia Times, Stimson Center, Lowy Institute
+
+### Asia-Pacific & Oceania
+Channel NewsAsia, ABC News Australia, RNZ World, Times of India, South China Morning Post, The Diplomat, Nikkei Asia, Asia Times, Lowy Institute
 
 ### Government & Official
 UN News, NATO News, US State Department
 
 ### Financial & Economic Intelligence
 Financial Times, Bloomberg Politics
+
+---
+
+## Region Coverage
+
+| Region | Countries / Areas |
+|--------|-------------------|
+| Middle East | Israel, Palestine, Iran, Iraq, Syria, Lebanon, Jordan, Yemen, Gulf states, Egypt, Turkey |
+| Europe | Russia, Ukraine, NATO Europe, Balkans, Caucasus |
+| Africa | Sub-Saharan Africa, North Africa, Sahel, Horn of Africa |
+| Asia-Pacific | East Asia, South Asia, Southeast Asia, Oceania, Australia, New Zealand, Pacific Islands |
+| Americas | North America, Central America, South America, Caribbean |
+| Global | Events spanning multiple regions |
+
+> **Note:** Iran and Iraq are always classified as Middle East regardless of geographic ambiguity.
 
 ---
 
@@ -248,22 +258,52 @@ REGION_AMERICAS_ID=
 
 ---
 
+## Changelog
+
+### v1.3 — March 2026
+- Expanded source database from 30 to **37 sources**
+- Added **Asia-Pacific / Oceania** regional coverage: ABC News Australia, RNZ World, Channel NewsAsia, The Diplomat, Nikkei Asia, Asia Times, Lowy Institute
+- Renamed `Asia` region to `Asia-Pacific` across the entire system
+- Strict AI classifier region rules — prevents Middle East events from routing to Asia-Pacific
+- Redesigned all Discord embeds with **dark ops aesthetic**: monospace data blocks, clean `//` separators, no decorative emoji in labels
+- Added new geopolitical keywords for Oceania and Indo-Pacific monitoring
+
+### v1.2
+- SQLite persistent database
+- Live panels (status, logs, errors, command center)
+- Source health tracking
+
+### v1.1
+- AI classification pipeline
+- Regional channel routing
+- Critical alerts with @everyone
+
+### v1.0
+- Initial release — RSS monitoring, basic Discord bot
+
+---
+
 ## Roadmap
 
+### Immediate
+- [ ] `/stats` command — total articles, by region, by level, total SITREPs
+- [ ] Evidence Vault — file metadata analysis (images, PDFs)
+- [ ] `/chat` — free AI conversation with session memory
+
 ### v2.0 — Web Platform
-- [ ] Web dashboard (FastAPI + React)
-- [ ] REST API for third-party integrations
-- [ ] Multi-server support
+- [ ] FastAPI backend serving `vega.db`
+- [ ] Single-page HTML dashboard
+- [ ] REST API: `/api/articles`, `/api/sitreps`, `/api/stats`, `/api/sources`
 
 ### v2.5 — Expanded Intelligence
 - [ ] Naval module — vessel tracking via AIS
 - [ ] Aviation module — aircraft tracking
-- [ ] Cyber module — threat intelligence feeds
-- [ ] Evidence Vault — file metadata analysis
+- [ ] Cyber module — CVE feeds, threat intel
+- [ ] RSS.app integration for Twitter/X accounts
 
 ### v3.0 — Platform
-- [ ] Multiple AI model support
-- [ ] Custom source configuration via Discord
+- [ ] Multi-server support
+- [ ] Multiple AI models (Gemini Flash as Groq backup)
 - [ ] Public API with authentication
 - [ ] User accounts and saved searches
 
