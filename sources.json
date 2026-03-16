@@ -102,14 +102,63 @@
       "name": "Times of India",
       "url": "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms",
       "category": "conflict",
-      "region": "Asia",
+      "region": "Asia-Pacific",
       "enabled": true
     },
     {
       "name": "South China Morning Post",
       "url": "https://www.scmp.com/rss/91/feed",
       "category": "geopolitics",
-      "region": "Asia",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "The Diplomat",
+      "url": "https://thediplomat.com/feed/",
+      "category": "geopolitics",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "Nikkei Asia",
+      "url": "https://asia.nikkei.com/rss/feed/nar",
+      "category": "geopolitics",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "Asia Times",
+      "url": "https://asiatimes.com/feed/",
+      "category": "conflict",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "Channel NewsAsia",
+      "url": "https://www.channelnewsasia.com/rssfeeds/8395986",
+      "category": "conflict",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "ABC News Australia",
+      "url": "https://www.abc.net.au/news/feed/51120/rss.xml",
+      "category": "conflict",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "RNZ World",
+      "url": "https://www.rnz.co.nz/rss/world.xml",
+      "category": "conflict",
+      "region": "Asia-Pacific",
+      "enabled": true
+    },
+    {
+      "name": "Lowy Institute",
+      "url": "https://www.lowyinstitute.org/the-interpreter/rss.xml",
+      "category": "geopolitics",
+      "region": "Asia-Pacific",
       "enabled": true
     },
     {

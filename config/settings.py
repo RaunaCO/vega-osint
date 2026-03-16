@@ -20,13 +20,16 @@ AI_ANALYSIS_CHANNEL_ID = int(os.getenv("AI_ANALYSIS_CHANNEL_ID"))
 BRIEFING_ROOM_CHANNEL_ID = int(os.getenv("BRIEFING_ROOM_CHANNEL_ID"))
 EVIDENCE_VAULT_CHANNEL_ID = int(os.getenv("EVIDENCE_VAULT_CHANNEL_ID"))
 
-
+# REGION_CHANNELS maps the region string returned by the AI classifier
+# to the Discord channel ID where articles get routed.
+# "Asia-Pacific" replaces "Asia" to include Oceania (Australia, NZ, Pacific Islands).
+# The Discord channel ID (REGION_ASIA_ID) is the same — no .env change needed.
 REGION_CHANNELS = {
-    "Middle East": int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
-    "Europe":      int(os.getenv("REGION_EUROPA_ID")),
-    "Africa":      int(os.getenv("REGION_AFRICA_ID")),
-    "Asia":        int(os.getenv("REGION_ASIA_ID")),
-    "Americas":    int(os.getenv("REGION_AMERICAS_ID")),
+    "Middle East":  int(os.getenv("REGION_MEDIO_ORIENTE_ID")),
+    "Europe":       int(os.getenv("REGION_EUROPA_ID")),
+    "Africa":       int(os.getenv("REGION_AFRICA_ID")),
+    "Asia-Pacific": int(os.getenv("REGION_ASIA_ID")),   # covers Asia + Oceania
+    "Americas":     int(os.getenv("REGION_AMERICAS_ID")),
 }
 
 # ============================================
@@ -37,7 +40,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 MONITOR_INTERVAL = 15
 
 # ============================================
-# NEWS SOURCES
+# NEWS SOURCES (legacy static dict — system now uses sources.json)
 # ============================================
 NEWS_FEEDS = {
     "BBC World":        "http://feeds.bbci.co.uk/news/world/rss.xml",
@@ -63,6 +66,11 @@ KEYWORDS = [
     "NATO", "UN", "Pentagon", "Kremlin", "IDF", "Hamas", "Hezbollah",
     "Ukraine", "Gaza", "Iran", "Israel", "Syria", "Sudan",
     "Yemen", "Taiwan", "Korea", "Russia", "China",
+    # Asia-Pacific & Oceania additions
+    "Pacific", "Indo-Pacific", "Australia", "AUKUS", "ANZUS",
+    "New Zealand", "Papua", "Fiji", "Solomons", "Vanuatu",
+    "Philippines", "Indonesia", "Myanmar", "South China Sea",
+    "ASEAN", "Quad", "Five Eyes",
     "OSINT", "intelligence", "geopolitics", "satellite", "confirmed",
     "geolocated", "footage", "evidence", "vessel", "aircraft"
 ]
@@ -105,7 +113,13 @@ LEVELS:
 - MEDIUM: active tensions, troop movements, hostile declarations
 - LOW: analysis, context, unconfirmed reports
 
-REGIONS: Middle East, Europe, Africa, Asia, Americas, Global
+REGIONS (pick the single most relevant):
+- Middle East   → Israel, Palestine, Iran, Iraq, Syria, Lebanon, Yemen, Saudi Arabia, Gulf states
+- Europe        → Russia, Ukraine, NATO Europe, Balkans, Caucasus
+- Africa        → Sub-Saharan Africa, North Africa, Sahel, Horn of Africa
+- Asia-Pacific  → East Asia, South Asia, Southeast Asia, Oceania, Australia, New Zealand, Pacific Islands, Indo-Pacific
+- Americas      → North America, Central America, South America, Caribbean
+- Global        → Events spanning multiple regions or with worldwide impact
 
 {
   "level": "CRITICAL/HIGH/MEDIUM/LOW",
