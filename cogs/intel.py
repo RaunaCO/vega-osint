@@ -136,25 +136,11 @@ class Intel(commands.Cog):
             )
             return response.choices[0].message.content.strip()
         except RateLimitError:
-            print("[VEGA] Groq rate limit hit — switching to Gemini fallback")
+            print("[VEGA] Groq 429 — skipping, retry next cycle")
             admin = self.get_admin()
             if admin:
-                admin.log("⚠️ Groq 429 — Gemini fallback active")
-
-        # --- Gemini fallback via HTTP (Python 3.8 compatible) ---
-        try:
-            prompt = f"{system}\n\n{user}"
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                    data = await resp.json()
-                    candidates = data.get("candidates", [])
-                    if not candidates:
-                        raise Exception("Gemini returned no candidates: " + str(data))
-                    return candidates[0]["content"]["parts"][0]["text"].strip()
-        except Exception as e:
-            print(f"[VEGA] Gemini fallback error: {e}")
+                admin.log("⚠️ Groq 429 — retry in 15min")
+            raise
             raise
 
     async def classify_article(self, title: str, summary: str, source: str) -> dict:
