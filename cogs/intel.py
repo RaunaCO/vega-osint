@@ -18,7 +18,7 @@ from utils.database import save_article, save_source_status
 
 client_groq = Groq(api_key=GROQ_API_KEY)
 
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent"
 
 # Max consecutive failures before a source is auto-disabled in sources.json
 MAX_SOURCE_FAILURES = 3
@@ -149,7 +149,10 @@ class Intel(commands.Cog):
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     data = await resp.json()
-                    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    candidates = data.get("candidates", [])
+                    if not candidates:
+                        raise Exception("Gemini returned no candidates: " + str(data))
+                    return candidates[0]["content"]["parts"][0]["text"].strip()
         except Exception as e:
             print(f"[VEGA] Gemini fallback error: {e}")
             raise
